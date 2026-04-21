@@ -963,7 +963,7 @@ tailwind.config = {
 // ║  STATE                                           ║
 // ╚══════════════════════════════════════════════════╝
 const STATE = {
-  apiUrl: localStorage.getItem('dynamoops_api_url') || '/api/proxy',
+  apiUrl: localStorage.getItem('dynamoops_api_url') || '',
   firma: localStorage.getItem('dynamoops_firma') || 'DynamoOps',
   wp: localStorage.getItem('dynamoops_wp') || '',
   gasExecUrl: '',
@@ -992,24 +992,47 @@ async function api(action, data = {}) {
   if (!STATE.apiUrl) {
     return demoHandler(action, data);
   }
-  // Ayarlar'daki URL doğrudan kullanılır.
-  // Exec URL girilmişse: tarayıcıda exec URL'yi bir kez aç,
-  // adres çubuğundaki echo URL'yi kopyalayıp Ayarlar'a gir.
-  try {
+  // JSONP — CORS sorunu yok, script tag exec redirect'ini takip eder
+  return new Promise((resolve) => {
+    const cbName = 'gasCallback_' + Date.now();
     const url = STATE.apiUrl.trim()
-      + (STATE.apiUrl.includes('?') ? '&' : '?')
-      + 'action=' + encodeURIComponent(action)
-      + '&data=' + encodeURIComponent(JSON.stringify(data));
+      + '?action=' + encodeURIComponent(action)
+      + '&data=' + encodeURIComponent(JSON.stringify(data))
+      + '&callback=' + cbName;
 
-    const res = await fetch(url, { method: 'GET', mode: 'cors' });
-    const text = await res.text();
-    if (!text) return { success: false, hata: 'Boş yanıt' };
-    try { return JSON.parse(text); }
-    catch(e) { return { success: false, hata: 'Parse hatası: ' + text.slice(0,100) }; }
-  } catch(e) {
-    toast('Bağlantı hatası: ' + e.message, 'error');
-    return { success: false, hata: e.message };
-  }
+    let done = false;
+
+    window[cbName] = function(result) {
+      if (done) return;
+      done = true;
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      clearTimeout(timer);
+      resolve(result);
+    };
+
+    const script = document.createElement('script');
+    script.src = url;
+
+    script.onerror = function() {
+      if (done) return;
+      done = true;
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      clearTimeout(timer);
+      resolve({ success: false, hata: 'Bağlantı hatası' });
+    };
+
+    const timer = setTimeout(function() {
+      if (done) return;
+      done = true;
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      resolve({ success: false, hata: 'Zaman aşımı' });
+    }, 25000);
+
+    document.head.appendChild(script);
+  });
 }
 
 // ─── Demo data (API yokken gösterim için) ─────────
