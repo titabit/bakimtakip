@@ -1000,12 +1000,7 @@ async function api(action, data = {}) {
     const res = await fetch(url, { redirect: 'follow' });
     const text = await res.text();
     if (!text) return { success: false, hata: 'Boş yanıt' };
-    
-    // HtmlService JSON'u HTML body içinde döndürür — çıkar
-    const match = text.match(/>\s*(\{[\s\S]*\})\s*</);
-    const json = match ? match[1] : text.trim();
-    
-    try { return JSON.parse(json); }
+    try { return JSON.parse(text); }
     catch(e) { return { success: false, hata: 'Parse hatası: ' + text.slice(0,150) }; }
   } catch(e) {
     toast('Bağlantı hatası: ' + e.message, 'error');
