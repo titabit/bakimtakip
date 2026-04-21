@@ -1,0 +1,3034 @@
+<!DOCTYPE html>
+<html lang="tr" class="light">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DynamoOps — Bakım Takip Sistemi</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<!-- jsPDF for PDF export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        'primary': '#003358',
+        'primary-container': '#004a7c',
+        'on-primary': '#ffffff',
+        'secondary': '#855300',
+        'secondary-container': '#fea619',
+        'on-secondary': '#ffffff',
+        'tertiary': '#00344e',
+        'tertiary-container': '#004c6f',
+        'on-tertiary': '#ffffff',
+        'surface': '#f8f9ff',
+        'surface-dim': '#ccdbf3',
+        'surface-variant': '#d5e3fc',
+        'surface-container-lowest': '#ffffff',
+        'surface-container-low': '#eff4ff',
+        'surface-container': '#e6eeff',
+        'surface-container-high': '#dce9ff',
+        'surface-container-highest': '#d5e3fc',
+        'on-surface': '#0d1c2e',
+        'on-surface-variant': '#42474f',
+        'outline': '#727780',
+        'outline-variant': '#c1c7d0',
+        'error': '#ba1a1a',
+        'error-container': '#ffdad6',
+        'on-error': '#ffffff',
+      },
+      borderRadius: {
+        'DEFAULT': '0.125rem', 'lg': '0.25rem', 'xl': '0.5rem', 'full': '0.75rem', '2xl': '1rem'
+      },
+      fontFamily: {
+        'headline': ['Manrope', 'sans-serif'],
+        'body': ['Inter', 'sans-serif'],
+        'label': ['Inter', 'sans-serif'],
+      }
+    }
+  }
+}
+</script>
+
+<style>
+  :root {
+    --primary: #003358;
+    --primary-container: #004a7c;
+    --secondary-container: #fea619;
+    --surface: #f8f9ff;
+    --surface-low: #eff4ff;
+    --surface-container: #e6eeff;
+    --surface-highest: #d5e3fc;
+    --on-surface: #0d1c2e;
+    --on-surface-variant: #42474f;
+    --outline-variant: #c1c7d0;
+    --error: #ba1a1a;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { background: #f8f9ff !important; }
+  body { font-family: 'Inter', sans-serif; background: #f8f9ff; color: var(--on-surface); overflow-x: hidden; }
+  h1,h2,h3,h4,h5,h6,.font-headline { font-family: 'Manrope', sans-serif; }
+
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    vertical-align: middle;
+    line-height: 1;
+  }
+  .ms-fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+
+  /* ─── Ambient shadow ─── */
+  .shadow-ambient { box-shadow: 0 8px 32px rgba(13,28,46,0.06); }
+  .shadow-ambient-lg { box-shadow: 0 16px 48px rgba(13,28,46,0.10); }
+
+  /* ─── Ghost border ─── */
+  .ghost-border { border: 1px solid rgba(193,199,208,0.18); }
+
+  /* ─── Gradient buttons ─── */
+  .btn-primary { background: linear-gradient(135deg, #003358 0%, #004a7c 100%); color: #fff; }
+  .btn-primary:hover { opacity: 0.92; }
+
+  /* ─── Scrollbar ─── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(193,199,208,0.5); border-radius: 99px; }
+
+  /* ─── Nav ─── */
+  #sidebar { transition: transform 0.3s ease; }
+  /* Bottom nav active */
+  .bottom-nav-btn { color: #42474f; }
+  .bottom-nav-btn.active { color: #003358; }
+  .bottom-nav-btn.active span.material-symbols-outlined { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+  .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-radius: 0 99px 99px 0; font-size: 0.875rem; font-weight: 500; color: #42474f; transition: background 0.15s, color 0.15s; cursor: pointer; }
+  .nav-item:hover { background: #d5e3fc; color: #003358; }
+  .nav-item.active { background: #e6eeff; color: #003358; font-weight: 700; }
+
+  /* ─── Kanban ─── */
+  .kanban-col { min-height: 520px; }
+  .kanban-card { transition: transform 0.15s ease, box-shadow 0.15s ease; cursor: grab; user-select: none; }
+  .kanban-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(13,28,46,0.10); }
+  .kanban-card.dragging { opacity: 0.5; transform: rotate(2deg) scale(0.97); cursor: grabbing; }
+  .kanban-col.drag-over { outline: 2px dashed #fea619; outline-offset: -4px; background: rgba(254,166,25,0.04); }
+
+  /* ─── Transitions ─── */
+  /* Screen geçişleri - Tailwind override'larına karşı korumalı */
+  div.screen { display: none; }
+  div.screen.active { display: block; }
+
+  /* ─── Modal ─── */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(248,249,255,0.72); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); z-index: 1000; display: none; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 48px 16px; }
+  .modal-backdrop.open { display: flex; }
+  .modal-box { background: #fff; border-radius: 1rem; max-width: 900px; width: 100%; position: relative; }
+
+  /* ─── Form inputs ─── */
+  .f-input { width: 100%; padding: 10px 14px; background: #e6eeff; border: none; border-bottom: 2px solid rgba(193,199,208,0.25); border-radius: 6px 6px 0 0; font-size: 0.875rem; color: #0d1c2e; outline: none; transition: border-color 0.15s; }
+  .f-input:focus { border-bottom-color: #003358; }
+  .f-input::placeholder { color: rgba(66,71,79,0.45); }
+  .f-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'%3E%3Cpath fill='%2342474f' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 36px; }
+
+  /* ─── Charts (CSS-based) ─── */
+  .bar { transition: height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  .progress-ring { transition: stroke-dashoffset 0.8s ease; }
+
+  /* ─── Toast ─── */
+  #toast { position: fixed; bottom: 32px; right: 32px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+  .toast-item { padding: 12px 20px; border-radius: 10px; color: #fff; font-size: 0.875rem; font-weight: 600; shadow-ambient-lg; animation: slideUp 0.3s ease forwards; max-width: 320px; }
+  .toast-item.success { background: #003358; }
+  .toast-item.error { background: #ba1a1a; }
+  .toast-item.info { background: #004c6f; }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ─── Loading spinner ─── */
+  .spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── Tag / Badge ─── */
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 99px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em; }
+  .badge-warn { background: #ffdad6; color: #ba1a1a; }
+  .badge-ok { background: #d5e3fc; color: #003358; }
+  .badge-progress { background: #e6eeff; color: #00344e; }
+  .badge-revize { background: rgba(254,166,25,0.18); color: #855300; }
+
+  /* ─── Autocomplete ─── */
+  .autocomplete-list { position: absolute; z-index: 200; background: #fff; border-radius: 0 0 10px 10px; border: 1px solid rgba(193,199,208,0.3); box-shadow: 0 8px 24px rgba(13,28,46,0.08); width: 100%; max-height: 200px; overflow-y: auto; }
+  .autocomplete-item { padding: 8px 14px; font-size: 0.875rem; cursor: pointer; display: flex; flex-direction: column; }
+  .autocomplete-item:hover { background: #eff4ff; }
+
+  /* ─── Durum renkleri ─── */
+  .durum-Is\ Emirleri { color: #42474f; }
+  .durum-Yapiliyor { color: #00344e; }
+  .durum-Yapildi { color: #003358; }
+  .durum-Revize { color: #855300; }
+
+  /* ─── Table ─── */
+  .tbl th { padding: 10px 16px; text-align: left; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #42474f; background: #eff4ff; }
+  .tbl td { padding: 12px 16px; font-size: 0.875rem; border-bottom: 1px solid rgba(193,199,208,0.12); }
+  .tbl tr:hover td { background: rgba(230,238,255,0.4); }
+
+  /* ─── Scrollable kanban ─── */
+  #kanban-board { overflow-x: auto; padding-bottom: 24px; }
+  .kanban-drop-zone { min-height: 60px; border-radius: 8px; transition: background 0.15s; }
+  .kanban-drop-zone.over { background: rgba(254,166,25,0.08); }
+
+  /* chart svg */
+  .chart-line { fill: none; stroke: #003358; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .chart-area { fill: url(#chartGrad); }
+  .chart-dot { fill: #fff; stroke: #003358; stroke-width: 2.5; r: 4; }
+  .chart-dot:hover { r: 6; }
+
+  /* Settings config banner */
+  #config-banner { background: linear-gradient(135deg,#003358,#004a7c); color:#fff; padding:12px 16px; display:none; align-items:center; gap:10px; font-size:0.8rem; flex-wrap:wrap; }
+  #config-banner.show { display:flex; }
+  #config-banner input { background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); border-radius:6px; padding:6px 12px; color:#fff; flex:1; min-width:120px; font-size:0.8rem; }
+  #config-banner input::placeholder { color:rgba(255,255,255,0.55); }
+
+  /* ─── Skeleton loading ─── */
+  .skeleton { background: linear-gradient(90deg, #e6eeff 25%, #d5e3fc 50%, #e6eeff 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 8px; }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  /* ─── Mobil iyileştirmeler ─── */
+  @media (max-width: 768px) {
+    /* Kanban yatay kaydırma touch */
+    #kanban-board { -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; }
+    #kanban-board > div { scroll-snap-align: start; }
+    /* Tablo overflow */
+    .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    /* Modal mobil */
+    .modal-backdrop { padding: 16px 8px; align-items: flex-end; }
+    .modal-box { border-radius: 1.25rem 1.25rem 0 0; max-height: 92vh; overflow-y: auto; }
+    /* Ekranlar üst boşluk (mobile header = 64px) */
+    .screen.active { padding-top: 72px; }
+    /* Kalem satırları mobilde dikey */
+    .kalem-row { flex-wrap: wrap; gap: 8px; }
+    .kalem-row > .flex-1 { width: 100%; }
+    .kalem-row > .w-28, .kalem-row > .w-20, .kalem-row > .w-24 { width: auto; flex: 1; min-width: 70px; }
+    /* Toast alt ortada */
+    #toast { bottom: 16px; right: 16px; left: 16px; align-items: center; }
+    .toast-item { text-align: center; }
+    /* Config banner mobil */
+    #config-banner { top: 64px; }
+    /* KPI kartlar */
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    /* Büyük başlıklar mobilde küçült */
+    .screen.active h2.text-4xl { font-size: 2rem; }
+    .screen.active h2.text-5xl { font-size: 2.2rem; }
+  }
+  @media (max-width: 480px) {
+    .modal-box { border-radius: 1rem 1rem 0 0; }
+    /* Bakım detay grid tek kolon */
+    #bakim-detay-content .grid { grid-template-columns: 1fr !important; }
+  }
+</style>
+</head>
+<body class="flex min-h-screen">
+
+<!-- ════════════════════════════════════════════
+     SIDEBAR
+═════════════════════════════════════════════ -->
+<nav id="sidebar" class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low z-40 py-6">
+  <div class="px-6 mb-8 flex items-center gap-3">
+    <div class="w-10 h-10 rounded-lg btn-primary flex items-center justify-center shadow-ambient overflow-hidden" id="sidebar-logo-wrap">
+      <span class="material-symbols-outlined ms-fill text-white" style="font-size:22px" id="sidebar-logo-icon">bolt</span>
+      <img id="sidebar-logo-img" class="w-full h-full object-cover hidden" src="" alt="Logo"/>
+    </div>
+    <div>
+      <h1 class="text-lg font-black text-primary font-headline leading-tight tracking-tight" id="sidebar-firma-adi">DynamoOps</h1>
+      <p class="text-xs text-on-surface-variant">Bakım Takip Sistemi</p>
+    </div>
+  </div>
+
+  <div class="flex-1 px-3 space-y-1 overflow-y-auto">
+    <div class="nav-item active" data-screen="dashboard">
+      <span class="material-symbols-outlined">dashboard</span> Dashboard
+    </div>
+    <div class="nav-item" data-screen="musteriler">
+      <span class="material-symbols-outlined">group</span> Müşteri & Çalışan
+    </div>
+    <div class="nav-item" data-screen="urundb">
+      <span class="material-symbols-outlined">inventory_2</span> Ürün Veritabanı
+    </div>
+    <div class="nav-item" data-screen="analitik">
+      <span class="material-symbols-outlined">query_stats</span> Analitik
+    </div>
+  </div>
+
+  <div class="px-6 mt-auto space-y-3">
+    <button onclick="openModal('modal-is-emri')" class="w-full btn-primary py-3 px-4 rounded-lg font-label font-semibold text-sm shadow-ambient flex items-center justify-center gap-2 transition-opacity">
+      <span class="material-symbols-outlined" style="font-size:18px">add</span> Yeni İş Emri
+    </button>
+    <div class="nav-item" data-screen="ayarlar">
+      <span class="material-symbols-outlined">settings</span> Ayarlar
+    </div>
+  </div>
+</nav>
+
+<!-- Mobile header -->
+<header class="md:hidden fixed top-0 left-0 right-0 z-50 bg-surface-container-low flex items-center justify-between px-5 py-3 shadow-ambient">
+  <div class="flex items-center gap-3">
+    <button onclick="toggleMobileNav()" class="p-2 rounded-full hover:bg-surface-container">
+      <span class="material-symbols-outlined">menu</span>
+    </button>
+    <span class="font-headline font-black text-primary text-lg" id="mobile-firma-adi">DynamoOps</span>
+  </div>
+  <button onclick="openModal('modal-is-emri')" class="btn-primary p-2 rounded-lg shadow-ambient">
+    <span class="material-symbols-outlined text-white" style="font-size:20px">add</span>
+  </button>
+</header>
+
+<!-- Mobile nav drawer -->
+<div id="mobile-nav" class="hidden fixed inset-0 z-40">
+  <div class="absolute inset-0 bg-black/30" onclick="toggleMobileNav()"></div>
+  <nav class="absolute left-0 top-0 bottom-0 w-64 bg-surface-container-low py-6 px-3 space-y-1">
+    <div class="px-3 mb-6">
+      <span class="font-headline font-black text-primary text-xl" id="mobile-nav-firma-adi">DynamoOps</span>
+    </div>
+    <div class="nav-item active" data-screen="dashboard">
+      <span class="material-symbols-outlined">dashboard</span> Dashboard
+    </div>
+    <div class="nav-item" data-screen="musteriler">
+      <span class="material-symbols-outlined">group</span> Müşteri & Çalışan
+    </div>
+    <div class="nav-item" data-screen="urundb">
+      <span class="material-symbols-outlined">inventory_2</span> Ürün Veritabanı
+    </div>
+    <div class="nav-item" data-screen="analitik">
+      <span class="material-symbols-outlined">query_stats</span> Analitik
+    </div>
+    <div class="nav-item" data-screen="ayarlar">
+      <span class="material-symbols-outlined">settings</span> Ayarlar
+    </div>
+    <div class="px-3 pt-4">
+      <button onclick="openModal('modal-is-emri'); toggleMobileNav();" class="w-full btn-primary py-3 rounded-lg font-semibold text-sm flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined" style="font-size:18px">add</span> Yeni İş Emri
+      </button>
+    </div>
+  </nav>
+</div>
+
+<!-- ════════════════════════════════════════════
+     CONFIG BANNER (API URL yoksa göster)
+═════════════════════════════════════════════ -->
+<div id="config-banner" class="fixed top-0 left-0 right-0 z-50 md:left-64" style="">
+  <span class="material-symbols-outlined" style="font-size:18px">warning</span>
+  <span style="flex:1">Google Apps Script URL'si ayarlanmamış.</span>
+  <button onclick="showScreen('ayarlar'); document.getElementById('config-banner').classList.remove('show');" class="bg-secondary-container text-on-surface font-semibold text-xs px-3 py-1.5 rounded-md flex-shrink-0">Ayarlara Git →</button>
+  <button onclick="document.getElementById('config-banner').classList.remove('show');" class="text-white/70 hover:text-white transition-colors flex-shrink-0 p-1 rounded" title="Kapat">
+    <span class="material-symbols-outlined" style="font-size:18px">close</span>
+  </button>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MOBİL ALT NAVİGASYON
+═════════════════════════════════════════════ -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-container-low border-t border-outline-variant/15 flex items-center justify-around px-2 py-2 safe-area-bottom" style="box-shadow:0 -4px 20px rgba(13,28,46,0.08)">
+  <button onclick="showScreen('dashboard')" class="bottom-nav-btn flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors active:bg-surface-container" data-bn="dashboard">
+    <span class="material-symbols-outlined" style="font-size:22px">dashboard</span>
+    <span class="text-xs font-label font-medium">Ana Sayfa</span>
+  </button>
+  <button onclick="showScreen('musteriler')" class="bottom-nav-btn flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors active:bg-surface-container" data-bn="musteriler">
+    <span class="material-symbols-outlined" style="font-size:22px">group</span>
+    <span class="text-xs font-label font-medium">Rehber</span>
+  </button>
+  <button onclick="openModal('modal-is-emri')" class="flex flex-col items-center gap-0.5 px-3 py-1.5">
+    <div class="w-12 h-12 btn-primary rounded-full flex items-center justify-center shadow-ambient -mt-5">
+      <span class="material-symbols-outlined text-white" style="font-size:24px">add</span>
+    </div>
+  </button>
+  <button onclick="showScreen('analitik')" class="bottom-nav-btn flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors active:bg-surface-container" data-bn="analitik">
+    <span class="material-symbols-outlined" style="font-size:22px">query_stats</span>
+    <span class="text-xs font-label font-medium">Analitik</span>
+  </button>
+  <button onclick="showScreen('ayarlar')" class="bottom-nav-btn flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors active:bg-surface-container" data-bn="ayarlar">
+    <span class="material-symbols-outlined" style="font-size:22px">settings</span>
+    <span class="text-xs font-label font-medium">Ayarlar</span>
+  </button>
+</nav>
+
+<!-- ════════════════════════════════════════════
+     MAIN CONTENT
+═════════════════════════════════════════════ -->
+<main id="main-content" class="flex-1 md:ml-64 min-h-screen pb-20 md:pb-0 bg-surface">
+
+<!-- ── SCREEN: DASHBOARD ─────────────────────── -->
+<div id="screen-dashboard" class="screen active p-6 lg:p-10">
+
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8 pt-2 md:pt-0">
+    <div>
+      <h2 class="text-4xl lg:text-5xl font-black font-headline text-primary leading-none tracking-tight">Kontrol Merkezi</h2>
+      <p class="text-on-surface-variant text-sm mt-2">Aktif bakım emirleri ve canlı durum özeti</p>
+    </div>
+    <div class="flex items-center gap-3 bg-surface-container-low px-4 py-2 rounded-xl">
+      <span class="w-2 h-2 rounded-full bg-secondary-container animate-pulse"></span>
+      <span class="text-sm font-label font-medium text-on-surface-variant" id="live-clock"></span>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-ambient ghost-border">
+      <div class="flex justify-between items-start mb-3">
+        <span class="text-xs font-label font-semibold text-on-surface-variant uppercase tracking-wider">Bekleyen</span>
+        <span class="material-symbols-outlined text-outline" style="font-size:20px">inbox</span>
+      </div>
+      <div class="text-3xl font-headline font-black text-primary" id="kpi-bekleyen">—</div>
+      <div class="text-xs text-on-surface-variant mt-1">İş emri</div>
+    </div>
+    <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-ambient ghost-border">
+      <div class="flex justify-between items-start mb-3">
+        <span class="text-xs font-label font-semibold text-on-surface-variant uppercase tracking-wider">Yapılıyor</span>
+        <span class="material-symbols-outlined text-tertiary" style="font-size:20px">pending</span>
+      </div>
+      <div class="text-3xl font-headline font-black text-tertiary" id="kpi-yapiliyor">—</div>
+      <div class="text-xs text-on-surface-variant mt-1">Aktif bakım</div>
+    </div>
+    <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-ambient ghost-border">
+      <div class="flex justify-between items-start mb-3">
+        <span class="text-xs font-label font-semibold text-on-surface-variant uppercase tracking-wider">Tamamlanan</span>
+        <span class="material-symbols-outlined text-primary-container" style="font-size:20px">check_circle</span>
+      </div>
+      <div class="text-3xl font-headline font-black text-primary" id="kpi-yapildi">—</div>
+      <div class="text-xs text-on-surface-variant mt-1">Bu ay</div>
+    </div>
+    <div class="bg-error-container rounded-2xl p-5 shadow-ambient relative overflow-hidden">
+      <div class="flex justify-between items-start mb-3">
+        <span class="text-xs font-label font-semibold text-error uppercase tracking-wider">Revize</span>
+        <span class="material-symbols-outlined text-error" style="font-size:20px">warning</span>
+      </div>
+      <div class="text-3xl font-headline font-black text-error" id="kpi-revize">—</div>
+      <div class="text-xs text-error mt-1">Dikkat gerektiriyor</div>
+    </div>
+  </div>
+
+  <!-- Chart + Mini Stats Row -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <!-- Line Chart -->
+    <div class="lg:col-span-2 bg-surface-container-highest rounded-2xl p-6 shadow-ambient ghost-border">
+      <div class="flex justify-between items-start mb-4">
+        <div>
+          <h3 class="font-headline font-bold text-primary text-lg">Haftalık İş Akışı</h3>
+          <p class="text-xs text-on-surface-variant mt-0.5">Son 7 gün — açılan vs. kapanan</p>
+        </div>
+        <div class="flex gap-3 text-xs font-label">
+          <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-primary inline-block"></span>Açılan</span>
+          <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 rounded bg-secondary-container inline-block"></span>Kapanan</span>
+        </div>
+      </div>
+      <div class="relative h-48" id="chart-container">
+        <svg id="dashboard-chart" class="w-full h-full" viewBox="0 0 500 160" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#003358" stop-opacity="0.18"/>
+              <stop offset="100%" stop-color="#003358" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path id="chart-grid-lines" d="M0 40 L500 40 M0 80 L500 80 M0 120 L500 120" stroke="#c1c7d0" stroke-dasharray="4 4" stroke-width="1" opacity="0.5"/>
+          <path id="chart-area" class="chart-area"/>
+          <path id="chart-line" class="chart-line"/>
+          <g id="chart-dots"></g>
+        </svg>
+        <div id="chart-x-labels" class="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-on-surface-variant px-1"></div>
+      </div>
+    </div>
+
+    <!-- Donut / stats -->
+    <div class="bg-surface-container-lowest rounded-2xl p-6 shadow-ambient ghost-border flex flex-col justify-between">
+      <h3 class="font-headline font-bold text-primary text-lg mb-4">Durum Dağılımı</h3>
+      <div class="flex justify-center mb-4">
+        <svg viewBox="0 0 120 120" class="w-28 h-28">
+          <circle cx="60" cy="60" r="48" fill="none" stroke="#d5e3fc" stroke-width="18"/>
+          <circle id="donut-yapildi"  cx="60" cy="60" r="48" fill="none" stroke="#003358" stroke-width="18" stroke-dasharray="0 302" stroke-dashoffset="75" stroke-linecap="butt" style="transition:stroke-dasharray 0.7s ease"/>
+          <circle id="donut-yapiliyor" cx="60" cy="60" r="48" fill="none" stroke="#00344e" stroke-width="18" stroke-dasharray="0 302" stroke-dashoffset="75" stroke-linecap="butt" style="transition:stroke-dasharray 0.7s ease"/>
+          <circle id="donut-revize"   cx="60" cy="60" r="48" fill="none" stroke="#fea619" stroke-width="18" stroke-dasharray="0 302" stroke-dashoffset="75" stroke-linecap="butt" style="transition:stroke-dasharray 0.7s ease"/>
+          <text x="60" y="64" text-anchor="middle" font-family="Manrope" font-size="18" font-weight="800" fill="#003358" id="donut-center-text">—</text>
+        </svg>
+      </div>
+      <div class="space-y-2" id="donut-legend"></div>
+    </div>
+  </div>
+
+  <!-- Kanban Board -->
+  <div class="mb-4 flex items-center justify-between">
+    <h3 class="text-2xl font-headline font-bold text-primary">Aktif İş Emirleri</h3>
+    <div class="flex items-center gap-2">
+      <input type="text" id="kanban-search" placeholder="İş emri ara..." class="f-input w-48 text-xs py-2 rounded-lg" oninput="filterKanban(this.value)"/>
+    </div>
+  </div>
+
+  <div id="kanban-board" class="flex gap-5 pb-4" style="min-height:520px">
+    <!-- Columns rendered by JS -->
+  </div>
+</div>
+
+<!-- ── SCREEN: MÜŞTERİ & ÇALIŞAN ──────────────── -->
+<div id="screen-musteriler" class="screen p-6 lg:p-10">
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+    <div>
+      <h2 class="text-4xl font-black font-headline text-primary leading-none tracking-tight">Rehber</h2>
+      <p class="text-on-surface-variant text-sm mt-1">Müşteri hesapları ve teknik personel</p>
+    </div>
+    <div class="flex gap-3">
+      <div class="relative">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" style="font-size:18px">search</span>
+        <input type="text" id="musteri-search" placeholder="Ara..." class="f-input pl-9 rounded-lg w-48 py-2 text-sm" oninput="filterMusteriler(this.value)"/>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+    <!-- Müşteriler -->
+    <section class="xl:col-span-7 bg-surface-container-low rounded-2xl p-6">
+      <div class="flex justify-between items-center mb-6">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+            <span class="material-symbols-outlined" style="font-size:20px">domain</span>
+          </div>
+          <h2 class="font-headline text-xl font-bold text-primary">Müşteriler</h2>
+        </div>
+        <button onclick="openMusteri()" class="btn-primary text-sm font-semibold py-2 px-4 rounded-lg flex items-center gap-2 text-white">
+          <span class="material-symbols-outlined" style="font-size:16px">add</span> Yeni Müşteri
+        </button>
+      </div>
+      <div id="musteri-list" class="space-y-3">
+        <div class="skeleton h-16 w-full"></div>
+        <div class="skeleton h-16 w-full"></div>
+        <div class="skeleton h-16 w-4/5"></div>
+      </div>
+    </section>
+
+    <!-- Çalışanlar -->
+    <section class="xl:col-span-5 flex flex-col gap-5">
+      <div class="bg-gradient-to-br from-primary to-primary-container rounded-2xl p-6 relative overflow-hidden shadow-ambient-lg">
+        <div class="absolute -right-4 -top-4 text-white opacity-[0.07]">
+          <span class="material-symbols-outlined" style="font-size:120px">badge</span>
+        </div>
+        <div class="relative z-10">
+          <h2 class="font-headline text-lg font-bold text-white mb-1">Operasyonu Genişlet</h2>
+          <p class="text-sm text-blue-200 mb-4">Yeni teknisyen ve uzmanları kaydedin.</p>
+          <button onclick="openCalisan()" class="bg-secondary-container text-on-surface font-semibold text-sm py-2 px-4 rounded-lg flex items-center gap-2 hover:opacity-90 transition-opacity">
+            <span class="material-symbols-outlined" style="font-size:16px">person_add</span> Yeni Çalışan Ekle
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-surface-container-low rounded-2xl p-6 flex-1">
+        <div class="flex justify-between items-center mb-5">
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-primary" style="font-size:22px">engineering</span>
+            <h2 class="font-headline text-xl font-bold text-primary">Teknisyenler</h2>
+          </div>
+          <span id="calisan-count" class="bg-surface-container-highest text-primary text-xs font-bold px-3 py-1 rounded-full">0 Aktif</span>
+        </div>
+        <div id="calisan-list" class="space-y-3">
+          <div class="skeleton h-12 w-full"></div>
+          <div class="skeleton h-12 w-full"></div>
+          <div class="skeleton h-12 w-3/4"></div>
+        </div>
+        <button onclick="loadCalisanlar()" class="w-full mt-4 py-2 text-sm font-medium text-primary hover:bg-surface-container rounded-lg transition-colors">Tümünü Yenile</button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- ── SCREEN: ÜRÜN VERİTABANI ────────────────── -->
+<div id="screen-urundb" class="screen p-6 lg:p-10">
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
+    <div>
+      <h2 class="text-4xl font-black font-headline text-primary leading-none tracking-tight">Ürün Veritabanı</h2>
+      <p class="text-on-surface-variant text-sm mt-1">Kayıtlı ekipmanlar ve yedek parçalar</p>
+    </div>
+    <div class="flex gap-3">
+      <button onclick="switchUrunDbTab('urunler')" id="tab-urunler" class="px-4 py-2 rounded-lg text-sm font-semibold btn-primary">Ürünler</button>
+      <button onclick="switchUrunDbTab('parcalar')" id="tab-parcalar" class="px-4 py-2 rounded-lg text-sm font-semibold bg-surface-container text-primary hover:bg-surface-container-high transition-colors">Yedek Parçalar</button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+    <!-- Form -->
+    <div class="xl:col-span-4">
+      <div class="bg-surface-container-lowest rounded-2xl p-6 shadow-ambient ghost-border" id="urundb-form-container">
+        <!-- JS ile doldurulacak -->
+      </div>
+    </div>
+
+    <!-- Tablo -->
+    <div class="xl:col-span-8 bg-surface-container-lowest rounded-2xl shadow-ambient ghost-border overflow-hidden">
+      <div class="p-5 border-b border-surface-container flex items-center justify-between">
+        <h3 class="font-headline font-bold text-primary flex items-center gap-2">
+          <span class="material-symbols-outlined" style="font-size:20px">view_list</span>
+          <span id="urundb-table-title">Kayıtlı Ürünler</span>
+        </h3>
+        <div class="relative">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" style="font-size:16px">search</span>
+          <input type="text" id="urundb-search" placeholder="Ara..." class="f-input pl-9 text-sm py-2 rounded-lg w-48" oninput="filterUrunDB(this.value)"/>
+        </div>
+      </div>
+      <div id="urundb-table-body" class="overflow-x-auto"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SCREEN: ANALİTİK ───────────────────────── -->
+<div id="screen-analitik" class="screen p-6 lg:p-10">
+  <div class="flex flex-col md:flex-row justify-between items-end gap-4 mb-8">
+    <div>
+      <h2 class="text-4xl font-black font-headline text-primary leading-none tracking-tight">Performans Analizi</h2>
+      <p class="text-on-surface-variant text-sm mt-1" id="analitik-subtitle">Aylık özet</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+      <!-- Period tabs -->
+      <div class="flex bg-surface-container rounded-xl p-1">
+        <button onclick="setAnalitikPeriod('haftalik')" id="btn-haftalik" class="px-3 py-1.5 text-sm font-label text-on-surface-variant hover:text-primary rounded-lg transition-colors">Haftalık</button>
+        <button onclick="setAnalitikPeriod('aylik')" id="btn-aylik" class="px-3 py-1.5 text-sm font-label bg-surface-container-lowest rounded-lg text-primary font-semibold shadow-sm">Aylık</button>
+        <button onclick="setAnalitikPeriod('yillik')" id="btn-yillik" class="px-3 py-1.5 text-sm font-label text-on-surface-variant hover:text-primary rounded-lg transition-colors">Yıllık</button>
+      </div>
+      <!-- Custom date -->
+      <div class="flex items-center gap-2 bg-surface-container rounded-xl p-1 px-3">
+        <input type="date" id="analitik-bas" class="bg-transparent text-xs text-on-surface border-none outline-none"/>
+        <span class="text-on-surface-variant text-xs">—</span>
+        <input type="date" id="analitik-bit" class="bg-transparent text-xs text-on-surface border-none outline-none"/>
+        <button onclick="setAnalitikCustom()" class="btn-primary text-xs px-3 py-1.5 rounded-lg">Uygula</button>
+      </div>
+      <!-- Export -->
+      <button onclick="exportAnalitikCSV()" class="flex items-center gap-2 bg-surface-container-highest text-primary text-sm font-semibold py-2 px-4 rounded-lg hover:bg-surface-variant transition-colors">
+        <span class="material-symbols-outlined" style="font-size:18px">download</span> CSV
+      </button>
+    </div>
+  </div>
+
+  <!-- KPI bento -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-ambient ghost-border">
+      <div class="text-xs font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Toplam İşlem</div>
+      <div class="text-3xl font-headline font-black text-on-surface" id="a-toplam"><span class="skeleton inline-block w-12 h-8 rounded-lg">&nbsp;</span></div>
+    </div>
+    <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-ambient ghost-border">
+      <div class="text-xs font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Tamamlanan</div>
+      <div class="text-3xl font-headline font-black text-primary" id="a-yapildi"><span class="skeleton inline-block w-12 h-8 rounded-lg">&nbsp;</span></div>
+    </div>
+    <div class="bg-error-container rounded-2xl p-5 shadow-ambient">
+      <div class="text-xs font-label font-semibold text-error uppercase tracking-wider mb-2">Revize</div>
+      <div class="text-3xl font-headline font-black text-error" id="a-revize"><span class="skeleton inline-block w-12 h-8 rounded-lg">&nbsp;</span></div>
+    </div>
+    <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-ambient ghost-border">
+      <div class="text-xs font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Toplam Ciro</div>
+      <div class="text-2xl font-headline font-black text-secondary" id="a-ciro"><span class="skeleton inline-block w-20 h-8 rounded-lg">&nbsp;</span></div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Bar chart — Kategori bazlı -->
+    <div class="lg:col-span-2 bg-surface-container-low rounded-2xl p-6">
+      <h4 class="font-headline font-bold text-primary mb-6">Kategori Bazlı İşlem Hacmi</h4>
+      <div id="kategori-chart" class="space-y-3">
+        <div class="skeleton h-8 w-full"></div>
+        <div class="skeleton h-8 w-4/5"></div>
+        <div class="skeleton h-8 w-3/5"></div>
+        <div class="skeleton h-8 w-2/5"></div>
+      </div>
+    </div>
+
+    <!-- Revize ranking -->
+    <div class="bg-surface-container-lowest rounded-2xl p-6 shadow-ambient ghost-border">
+      <h4 class="font-headline font-bold text-primary mb-2">⚠️ Revize Nedenleri</h4>
+      <p class="text-xs text-on-surface-variant mb-5">Çalışan bazlı revize sayıları</p>
+      <div id="revize-ranking" class="space-y-4">
+        <div class="skeleton h-10 w-full"></div>
+        <div class="skeleton h-10 w-3/4"></div>
+        <div class="skeleton h-10 w-1/2"></div>
+      </div>
+      <div class="mt-5 bg-surface-container-low rounded-xl p-4">
+        <p class="text-xs text-on-surface-variant leading-relaxed">
+          <span class="font-bold text-on-surface">⚡ İpucu:</span> Revize oranı yüksek çalışanlara ek eğitim verilebilir. Müşteri memnuniyetini artırmak için revize nedenleri takip edilmeli.
+        </p>
+      </div>
+    </div>
+
+    <!-- Çalışan performansı -->
+    <div class="lg:col-span-3 bg-surface-container-low rounded-2xl p-6">
+      <h4 class="font-headline font-bold text-primary mb-6">Çalışan Performans Tablosu</h4>
+      <div id="calisan-perf-table" class="overflow-x-auto">
+        <div class="space-y-2">
+          <div class="skeleton h-10 w-full"></div>
+          <div class="skeleton h-10 w-full"></div>
+          <div class="skeleton h-10 w-5/6"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SCREEN: AYARLAR ────────────────────────── -->
+<div id="screen-ayarlar" class="screen p-6 lg:p-10">
+  <div class="mb-8">
+    <h2 class="text-4xl font-black font-headline text-primary leading-none tracking-tight">Ayarlar</h2>
+    <p class="text-on-surface-variant text-sm mt-1">Sistem konfigürasyonu</p>
+  </div>
+
+  <div class="max-w-2xl space-y-6">
+    <div class="bg-surface-container-lowest rounded-2xl p-6 shadow-ambient ghost-border space-y-5">
+      <h3 class="font-headline font-bold text-primary flex items-center gap-2">
+        <span class="material-symbols-outlined" style="font-size:20px">cloud_sync</span> Google Sheets Bağlantısı
+      </h3>
+      <div>
+        <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Apps Script Web App URL</label>
+        <input type="url" id="settings-api-url" class="f-input rounded-t-lg" placeholder="https://script.google.com/macros/s/.../exec"/>
+        <p class="text-xs text-on-surface-variant mt-2 flex items-center gap-1">
+          <span class="material-symbols-outlined" style="font-size:14px">info</span>
+          Tarayıcıda exec URL'yi aç, yönlendirme sonrası adres çubuğundaki <b>echo URL'sini</b> buraya yapıştır.
+        </p>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="saveApiUrl(true)" class="btn-primary px-5 py-2.5 rounded-lg font-semibold text-sm text-white">Kaydet & Bağlan</button>
+        <button onclick="testApiConnection()" class="bg-surface-container px-5 py-2.5 rounded-lg font-semibold text-sm text-primary hover:bg-surface-container-high transition-colors">Bağlantıyı Test Et</button>
+        <button onclick="runKurulum()" class="bg-surface-container px-5 py-2.5 rounded-lg font-semibold text-sm text-primary hover:bg-surface-container-high transition-colors">İlk Kurulum</button>
+      </div>
+      <div id="api-test-result"></div>
+    </div>
+
+    <!-- İşletme Bilgileri -->
+    <div class="bg-surface-container-lowest rounded-2xl p-6 shadow-ambient ghost-border">
+      <h3 class="font-headline font-bold text-primary mb-4 flex items-center gap-2">
+        <span class="material-symbols-outlined" style="font-size:20px">business</span> İşletme Bilgileri
+      </h3>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">İşletme Adı</label>
+          <input type="text" id="settings-firma" class="f-input rounded-t-lg" placeholder="DynamoOps"/>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">WhatsApp Numarası</label>
+          <input type="text" id="settings-wp" class="f-input rounded-t-lg" placeholder="+905xxxxxxxxx"/>
+        </div>
+        <div class="col-span-2">
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Logo Yükle</label>
+          <div class="flex items-center gap-4">
+            <div class="w-16 h-16 rounded-xl bg-surface-container overflow-hidden ghost-border flex items-center justify-center">
+              <img id="logo-preview" class="w-full h-full object-cover hidden" src="" alt="Logo"/>
+              <span class="material-symbols-outlined text-outline" id="logo-preview-icon" style="font-size:28px">image</span>
+            </div>
+            <div>
+              <label class="cursor-pointer bg-surface-container hover:bg-surface-variant px-4 py-2 rounded-lg text-sm font-semibold text-primary inline-flex items-center gap-2 transition-colors">
+                <span class="material-symbols-outlined" style="font-size:16px">upload</span> Görsel Seç
+                <input type="file" id="logo-input" class="hidden" accept="image/*" onchange="previewLogo(this)"/>
+              </label>
+              <p class="text-xs text-on-surface-variant mt-1">PNG veya JPG, max 200KB önerilir</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button onclick="saveFirmaSettings()" class="mt-4 btn-primary px-5 py-2.5 rounded-lg font-semibold text-sm text-white">Kaydet</button>
+    </div>
+
+    <!-- WhatsApp Mesaj Şablonu -->
+    <div class="bg-surface-container-lowest rounded-2xl p-6 shadow-ambient ghost-border">
+      <h3 class="font-headline font-bold text-primary mb-2 flex items-center gap-2">
+        <span class="material-symbols-outlined" style="font-size:20px;color:#25D366">chat</span> WhatsApp Mesaj Şablonu
+      </h3>
+      <p class="text-xs text-on-surface-variant mb-4">Kullanılabilir değişkenler: <code class="bg-surface-container px-1.5 py-0.5 rounded">{sirket}</code> <code class="bg-surface-container px-1.5 py-0.5 rounded">{id}</code> <code class="bg-surface-container px-1.5 py-0.5 rounded">{firma}</code></p>
+      <textarea id="settings-wp-mesaj" class="f-input rounded-t-lg resize-none" rows="3" placeholder="Merhaba {sirket}, #{id} numaralı bakım kartınız hazır..."></textarea>
+      <button onclick="saveWpMesaj()" class="mt-3 bg-[#25D366] text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity">Mesajı Kaydet</button>
+    </div>
+
+    <!-- Kategori Yönetimi -->
+    <div class="bg-surface-container-lowest rounded-2xl p-6 shadow-ambient ghost-border">
+      <h3 class="font-headline font-bold text-primary mb-4 flex items-center gap-2">
+        <span class="material-symbols-outlined" style="font-size:20px">category</span> Kategori Yönetimi
+      </h3>
+      <div id="kategori-listesi" class="flex flex-wrap gap-2 mb-4"></div>
+      <div class="flex gap-2">
+        <input type="text" id="yeni-kategori-input" class="f-input rounded-t-lg text-sm flex-1" placeholder="Yeni kategori adı..." onkeydown="if(event.key==='Enter') addKategori()"/>
+        <button onclick="addKategori()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0">Ekle</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SCREEN: BAKIM KARTI DETAY ──────────────── -->
+<div id="screen-bakim-detay" class="screen p-6 lg:p-10">
+  <div id="bakim-detay-content">
+    <!-- JS ile doldurulacak -->
+  </div>
+</div>
+
+</main>
+
+<!-- ════════════════════════════════════════════
+     MODALS
+═════════════════════════════════════════════ -->
+
+<!-- Modal: Yeni İş Emri -->
+<div id="modal-is-emri" class="modal-backdrop">
+  <div class="modal-box shadow-ambient-lg">
+    <div class="bg-surface-container-low px-8 py-5 rounded-t-2xl flex justify-between items-center sticky top-0">
+      <div class="flex items-center gap-4">
+        <div class="w-11 h-11 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+          <span class="material-symbols-outlined" style="font-size:24px">build</span>
+        </div>
+        <div>
+          <h2 class="font-headline text-xl font-bold text-primary">Yeni İş Emri Oluştur</h2>
+          <p class="text-xs text-on-surface-variant mt-0.5">Müşteri ve ürün bilgilerini girin</p>
+        </div>
+      </div>
+      <button onclick="closeModal('modal-is-emri')" class="text-on-surface-variant hover:text-primary p-2 rounded-lg hover:bg-surface-container transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <div class="px-8 py-8 overflow-y-auto" style="max-height:calc(100dvh - 200px)">
+      <form id="form-is-emri" class="space-y-8">
+
+        <!-- Müşteri Bilgileri -->
+        <section class="space-y-4">
+          <div class="flex items-center gap-3 mb-2">
+            <span class="material-symbols-outlined text-secondary-container" style="font-size:22px">domain</span>
+            <h3 class="font-headline text-base font-bold text-primary">Müşteri Profili</h3>
+          </div>
+          <div class="bg-surface-container-low rounded-xl p-5 space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="relative">
+                <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Şirket Adı *</label>
+                <input type="text" id="ie-sirket" class="f-input rounded-t-lg" placeholder="Şirket adı girin..." autocomplete="off" oninput="sirketAutoComplete(this.value)"/>
+                <div id="sirket-autocomplete" class="autocomplete-list hidden"></div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Teslim Eden Kişi *</label>
+                <input type="text" id="ie-teslimeden" class="f-input rounded-t-lg" placeholder="İsim soyisim"/>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Telefon</label>
+                <input type="tel" id="ie-telefon" class="f-input rounded-t-lg" placeholder="+90 5xx xxx xx xx"/>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Teslim Tarihi *</label>
+                <input type="date" id="ie-tarih" class="f-input rounded-t-lg"/>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Atanan Çalışan</label>
+              <select id="ie-calisan" class="f-input f-select rounded-t-lg">
+                <option value="">Çalışan seçin (opsiyonel)</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- Ürünler -->
+        <section>
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-secondary-container" style="font-size:22px">precision_manufacturing</span>
+              <h3 class="font-headline text-base font-bold text-primary">Ürünler / Makineler</h3>
+            </div>
+            <span id="urun-sayac" class="bg-surface-container-highest text-primary text-xs font-bold px-3 py-1 rounded-full">1 Ürün</span>
+          </div>
+          <div id="urun-listesi" class="space-y-4"></div>
+          <button type="button" onclick="addUrunRow()" class="mt-3 w-full flex items-center justify-center gap-2 py-3 text-sm font-bold text-primary border-2 border-dashed border-primary/25 rounded-xl hover:bg-surface-container-low transition-colors">
+            <span class="material-symbols-outlined" style="font-size:18px">add_circle</span> Başka Ürün Ekle
+          </button>
+        </section>
+
+      </form>
+    </div>
+
+    <div class="bg-surface-container px-8 py-4 rounded-b-2xl flex justify-between items-center sticky bottom-0">
+      <button onclick="closeModal('modal-is-emri')" class="text-on-surface-variant hover:text-primary py-2 px-5 rounded-lg hover:bg-surface-container-high transition-colors font-semibold text-sm">İptal</button>
+      <div class="flex gap-3">
+        <button type="button" onclick="submitIsEmri()" id="btn-submit-isemri" class="btn-primary text-white font-bold text-sm px-8 py-2.5 rounded-xl shadow-ambient flex items-center gap-2">
+          <span class="material-symbols-outlined" style="font-size:16px">play_arrow</span> İş Emrini Başlat
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Müşteri Ekle/Düzenle -->
+<div id="modal-musteri" class="modal-backdrop">
+  <div class="modal-box shadow-ambient-lg" style="max-width:520px">
+    <div class="bg-surface-container-low px-6 py-5 rounded-t-2xl flex justify-between items-center">
+      <h2 id="modal-musteri-title" class="font-headline text-lg font-bold text-primary">Yeni Müşteri</h2>
+      <button onclick="closeModal('modal-musteri')" class="text-on-surface-variant hover:text-primary p-2 rounded-lg transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="hidden" id="musteri-edit-id"/>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="col-span-2">
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Şirket Adı *</label>
+          <input type="text" id="m-sirket" class="f-input rounded-t-lg" placeholder="Şirket adı"/>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">İletişim Kişisi</label>
+          <input type="text" id="m-kisi" class="f-input rounded-t-lg" placeholder="İsim soyisim"/>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Telefon</label>
+          <input type="tel" id="m-tel" class="f-input rounded-t-lg" placeholder="+90 5xx"/>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Email</label>
+          <input type="email" id="m-email" class="f-input rounded-t-lg" placeholder="email@sirket.com"/>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Adres</label>
+          <input type="text" id="m-adres" class="f-input rounded-t-lg" placeholder="Şehir, İlçe"/>
+        </div>
+      </div>
+    </div>
+    <div class="px-6 pb-6 flex justify-end gap-3">
+      <button onclick="closeModal('modal-musteri')" class="px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container rounded-lg transition-colors">İptal</button>
+      <button onclick="saveMusteri()" class="btn-primary px-6 py-2 rounded-lg text-sm font-bold text-white">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Çalışan Ekle/Düzenle -->
+<div id="modal-calisan" class="modal-backdrop">
+  <div class="modal-box shadow-ambient-lg" style="max-width:520px">
+    <div class="bg-surface-container-low px-6 py-5 rounded-t-2xl flex justify-between items-center">
+      <h2 id="modal-calisan-title" class="font-headline text-lg font-bold text-primary">Yeni Çalışan</h2>
+      <button onclick="closeModal('modal-calisan')" class="text-on-surface-variant hover:text-primary p-2 rounded-lg transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="hidden" id="calisan-edit-id"/>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Ad *</label>
+          <input type="text" id="c-ad" class="f-input rounded-t-lg" placeholder="Ad"/>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Soyad *</label>
+          <input type="text" id="c-soyad" class="f-input rounded-t-lg" placeholder="Soyad"/>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Unvan</label>
+          <input type="text" id="c-unvan" class="f-input rounded-t-lg" placeholder="Teknisyen, Uzman..."/>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Telefon</label>
+          <input type="tel" id="c-tel" class="f-input rounded-t-lg" placeholder="+90 5xx"/>
+        </div>
+        <div class="col-span-2">
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Email</label>
+          <input type="email" id="c-email" class="f-input rounded-t-lg" placeholder="calisan@sirket.com"/>
+        </div>
+      </div>
+    </div>
+    <div class="px-6 pb-6 flex justify-end gap-3">
+      <button onclick="closeModal('modal-calisan')" class="px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container rounded-lg transition-colors">İptal</button>
+      <button onclick="saveCalisan()" class="btn-primary px-6 py-2 rounded-lg text-sm font-bold text-white">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: WhatsApp gönder onay -->
+<div id="modal-whatsapp" class="modal-backdrop">
+  <div class="modal-box shadow-ambient-lg" style="max-width:480px">
+    <div class="p-6 text-center">
+      <div class="w-16 h-16 rounded-full bg-[#25D366]/10 flex items-center justify-center mx-auto mb-4">
+        <span class="material-symbols-outlined text-[#25D366] ms-fill" style="font-size:36px">chat</span>
+      </div>
+      <h3 class="font-headline text-xl font-bold text-on-surface mb-2">WhatsApp ile Gönder</h3>
+      <p class="text-sm text-on-surface-variant mb-4" id="wp-message-preview"></p>
+      <div class="mb-4">
+        <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Telefon Numarası</label>
+        <input type="tel" id="wp-telefon" class="f-input rounded-t-lg text-center" placeholder="+90 5xx xxx xx xx"/>
+      </div>
+      <div class="flex gap-3 justify-center">
+        <button onclick="closeModal('modal-whatsapp')" class="px-5 py-2.5 text-sm text-on-surface-variant hover:bg-surface-container rounded-lg transition-colors">İptal</button>
+        <button onclick="sendWhatsApp()" class="bg-[#25D366] text-white font-bold text-sm px-6 py-2.5 rounded-xl flex items-center gap-2 hover:opacity-90 transition-opacity">
+          <span class="material-symbols-outlined" style="font-size:18px">send</span> Gönder
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast"></div>
+
+<!-- ════════════════════════════════════════════
+     JAVASCRIPT — STATE + API + UI
+═════════════════════════════════════════════ -->
+<script>
+// ╔══════════════════════════════════════════════════╗
+// ║  STATE                                           ║
+// ╚══════════════════════════════════════════════════╝
+const STATE = {
+  apiUrl: localStorage.getItem('dynamoops_api_url') || '',
+  firma: localStorage.getItem('dynamoops_firma') || 'DynamoOps',
+  wp: localStorage.getItem('dynamoops_wp') || '',
+  gasExecUrl: '',
+  wpMesaj: localStorage.getItem('dynamoops_wp_mesaj') || 'Merhaba {sirket}, #{id} numaralı bakım servis kartınız hazır. PDF dosyasını inceleyebilirsiniz.',
+  logo: localStorage.getItem('dynamoops_logo') || '',
+  kategoriler: JSON.parse(localStorage.getItem('dynamoops_kategoriler') || '["Motor","Redüktör","Pompa","Kompresör","Şalter / Pano","Diğer"]'),
+  isEmirleri: [],
+  musteriler: [],
+  calisanlar: [],
+  urunDB: [],
+  yedekParca: [],
+  currentScreen: 'dashboard',
+  analitikPeriod: 'aylik',
+  analitikBas: null,
+  analitikBit: null,
+  urunDbTab: 'urunler',
+  currentBakimDetayId: null,
+  wpCurrentId: null,
+  dragItem: null,
+};
+
+// ╔══════════════════════════════════════════════════╗
+// ║  API                                             ║
+// ╚══════════════════════════════════════════════════╝
+async function api(action, data = {}) {
+  if (!STATE.apiUrl) {
+    return demoHandler(action, data);
+  }
+  // Ayarlar'daki URL doğrudan kullanılır.
+  // Exec URL girilmişse: tarayıcıda exec URL'yi bir kez aç,
+  // adres çubuğundaki echo URL'yi kopyalayıp Ayarlar'a gir.
+  try {
+    const url = STATE.apiUrl.trim()
+      + (STATE.apiUrl.includes('?') ? '&' : '?')
+      + 'action=' + encodeURIComponent(action)
+      + '&data=' + encodeURIComponent(JSON.stringify(data));
+
+    const res = await fetch(url, { method: 'GET', mode: 'cors' });
+    const text = await res.text();
+    if (!text) return { success: false, hata: 'Boş yanıt' };
+    try { return JSON.parse(text); }
+    catch(e) { return { success: false, hata: 'Parse hatası: ' + text.slice(0,100) }; }
+  } catch(e) {
+    toast('Bağlantı hatası: ' + e.message, 'error');
+    return { success: false, hata: e.message };
+  }
+}
+
+// ─── Demo data (API yokken gösterim için) ─────────
+function demoHandler(action, data) {
+  const demoDB = JSON.parse(localStorage.getItem('demo_db') || JSON.stringify(initDemoDB()));
+  
+  switch (action) {
+    case 'isEmirleri_listele': return { success:true, data: demoDB.isEmirleri };
+    case 'isEmri_olustur': {
+      const id = Date.now();
+      const urunler = (data.urunler||[]).map((u,i) => ({...u, ID: id+i+1, IsEmriID: id}));
+      const ie = { ID: id, MusteriID: id, SirketAdi: data.sirketAdi, TeslimEden: data.teslimEden, Telefon: data.telefon, TeslimTarihi: data.teslimTarihi, Durum: 'Is Emirleri', AtananCalisan: data.atananCalisan||'', OlusturmaTarihi: new Date().toISOString(), GuncellemeTarihi: new Date().toISOString(), Notlar: data.notlar||'', urunler, kalemler: [], toplamTutar: 0 };
+      demoDB.isEmirleri.push(ie);
+      localStorage.setItem('demo_db', JSON.stringify(demoDB));
+      return { success:true, id };
+    }
+    case 'isEmri_durumGuncelle': {
+      const ie = demoDB.isEmirleri.find(x => String(x.ID) === String(data.id));
+      if (ie) { ie.Durum = data.durum; ie.GuncellemeTarihi = new Date().toISOString(); if(data.atananCalisan) ie.AtananCalisan = data.atananCalisan; }
+      localStorage.setItem('demo_db', JSON.stringify(demoDB));
+      return { success:true };
+    }
+    case 'isEmri_getir': return { success:true, data: demoDB.isEmirleri.find(x => String(x.ID) === String(data.id)) || null };
+    case 'isEmri_sil': {
+      demoDB.isEmirleri = demoDB.isEmirleri.filter(x => String(x.ID) !== String(data.id));
+      localStorage.setItem('demo_db', JSON.stringify(demoDB));
+      return { success:true };
+    }
+    case 'kalemler_listele': {
+      const ie = demoDB.isEmirleri.find(x => String(x.ID) === String(data.isEmriID));
+      return { success:true, data: ie ? (ie.kalemler||[]) : [] };
+    }
+    case 'kalem_ekle': {
+      const ie = demoDB.isEmirleri.find(x => String(x.ID) === String(data.isEmriID));
+      if (!ie) return { success:false };
+      const _adet = parseFloat(data.adet)||1;
+      const _fiyat = parseFloat(data.birimFiyat)||0;
+      const _kdv = parseFloat(data.kdv)||0;
+      const k = { ID: Date.now(), IsEmriID: data.isEmriID, Aciklama: data.aciklama, Adet: _adet, BirimFiyat: _fiyat, KDV: _kdv, Toplam: _adet * _fiyat * (1 + _kdv/100), EklenmeTarihi: new Date().toISOString() };
+      if (!ie.kalemler) ie.kalemler = [];
+      ie.kalemler.push(k);
+      ie.toplamTutar = ie.kalemler.reduce((s,x) => s+(parseFloat(x.Toplam)||0), 0);
+      localStorage.setItem('demo_db', JSON.stringify(demoDB));
+      return { success:true, id:k.ID, toplam:k.Toplam };
+    }
+    case 'kalem_guncelle': {
+      for (const ie of demoDB.isEmirleri) {
+        const k = (ie.kalemler||[]).find(x => String(x.ID) === String(data.id));
+        if (k) {
+          k.Aciklama = data.aciklama; k.Adet = parseFloat(data.adet)||1; k.BirimFiyat = parseFloat(data.birimFiyat)||0; k.KDV = parseFloat(data.kdv)||0;
+          k.Toplam = k.Adet * k.BirimFiyat * (1 + k.KDV/100);
+          ie.toplamTutar = ie.kalemler.reduce((s,x) => s+(parseFloat(x.Toplam)||0), 0);
+          localStorage.setItem('demo_db', JSON.stringify(demoDB));
+          return { success:true, toplam:k.Toplam };
+        }
+      }
+      return { success:false };
+    }
+    case 'kalem_sil': {
+      for (const ie of demoDB.isEmirleri) {
+        const idx = (ie.kalemler||[]).findIndex(x => String(x.ID) === String(data.id));
+        if (idx !== -1) { ie.kalemler.splice(idx,1); ie.toplamTutar = ie.kalemler.reduce((s,x) => s+(parseFloat(x.Toplam)||0), 0); localStorage.setItem('demo_db', JSON.stringify(demoDB)); return { success:true }; }
+      }
+      return { success:true };
+    }
+    case 'musteriler_listele': return { success:true, data: demoDB.musteriler };
+    case 'musteri_ara': { const q = (data.q||'').toLowerCase(); return { success:true, data: demoDB.musteriler.filter(m => (m.SirketAdi||'').toLowerCase().includes(q)) }; }
+    case 'musteri_olustur': { const m = { ID: Date.now(), ...data, SirketAdi: data.sirketAdi, TeslimEden: data.teslimEden, Telefon: data.telefon, Adres: data.adres||'', Email: data.email||'', KayitTarihi: new Date().toISOString(), ToplamIsEmri: 0 }; demoDB.musteriler.push(m); localStorage.setItem('demo_db', JSON.stringify(demoDB)); return { success:true, id:m.ID }; }
+    case 'musteri_guncelle': { const m = demoDB.musteriler.find(x => String(x.ID) === String(data.id)); if (m) { Object.assign(m, data); localStorage.setItem('demo_db', JSON.stringify(demoDB)); } return { success:true }; }
+    case 'musteri_sil': { demoDB.musteriler = demoDB.musteriler.filter(x => String(x.ID) !== String(data.id)); localStorage.setItem('demo_db', JSON.stringify(demoDB)); return { success:true }; }
+    case 'calisanlar_listele': return { success:true, data: demoDB.calisanlar };
+    case 'calisan_olustur': { const c = { ID: Date.now(), Ad: data.ad, Soyad: data.soyad, Unvan: data.unvan||'', Telefon: data.telefon||'', Email: data.email||'', IseGirisTarihi: new Date().toISOString(), Durum: 'Aktif' }; demoDB.calisanlar.push(c); localStorage.setItem('demo_db', JSON.stringify(demoDB)); return { success:true, id:c.ID }; }
+    case 'calisan_guncelle': { const c = demoDB.calisanlar.find(x => String(x.ID) === String(data.id)); if(c) { Object.assign(c, data); localStorage.setItem('demo_db', JSON.stringify(demoDB)); } return { success:true }; }
+    case 'calisan_sil': { demoDB.calisanlar = demoDB.calisanlar.filter(x => String(x.ID) !== String(data.id)); localStorage.setItem('demo_db', JSON.stringify(demoDB)); return { success:true }; }
+    case 'urunDB_listele': return { success:true, data: demoDB.urunDB };
+    case 'urunDB_olustur': { const u = { ID: Date.now(), UrunAdi: data.urunAdi, Kategori: data.kategori||'', Marka: data.marka||'', Model: data.model||'', Aciklama: data.aciklama||'', VarsayilanProtokol: data.varsayilanProtokol||'', OlusturmaTarihi: new Date().toISOString() }; demoDB.urunDB.push(u); localStorage.setItem('demo_db', JSON.stringify(demoDB)); return { success:true, id:u.ID }; }
+    case 'urunDB_guncelle': { const u = demoDB.urunDB.find(x => String(x.ID) === String(data.id)); if(u) { Object.assign(u,data); localStorage.setItem('demo_db', JSON.stringify(demoDB)); } return { success:true }; }
+    case 'urunDB_sil': { demoDB.urunDB = demoDB.urunDB.filter(x => String(x.ID) !== String(data.id)); localStorage.setItem('demo_db', JSON.stringify(demoDB)); return { success:true }; }
+    case 'yedekParca_listele': return { success:true, data: demoDB.yedekParca };
+    case 'yedekParca_olustur': { const p = { ID: Date.now(), ParcaAdi: data.parcaAdi, Kategori: data.kategori||'', StokKodu: data.stokKodu||'', Aciklama: data.aciklama||'', OlusturmaTarihi: new Date().toISOString() }; demoDB.yedekParca.push(p); localStorage.setItem('demo_db', JSON.stringify(demoDB)); return { success:true, id:p.ID }; }
+    case 'yedekParca_sil': { demoDB.yedekParca = demoDB.yedekParca.filter(x => String(x.ID) !== String(data.id)); localStorage.setItem('demo_db', JSON.stringify(demoDB)); return { success:true }; }
+    case 'analitik_ozet': return { success:true, data: calcDemoAnalitik(demoDB, 'ozet') };
+    case 'analitik_revize': return { success:true, data: calcDemoAnalitik(demoDB, 'revize') };
+    case 'analitik_calisan': return { success:true, data: calcDemoAnalitik(demoDB, 'calisan') };
+    case 'analitik_kategori': return { success:true, data: calcDemoAnalitik(demoDB, 'kategori') };
+    case 'kurulum': return { success:true, mesaj: 'Demo modda kurulum gerekmez' };
+    default: return { success:false, hata: 'Bilinmeyen action: ' + action };
+  }
+}
+
+function initDemoDB() {
+  return {
+    isEmirleri: [
+      { ID:1001, MusteriID:1, SirketAdi:'Apex Heavy Industries', TeslimEden:'Mert Kaya', Telefon:'+90 555 111 2233', TeslimTarihi:'2026-04-15', Durum:'Is Emirleri', AtananCalisan:'Ahmet Yılmaz', OlusturmaTarihi:'2026-04-15T08:00:00Z', GuncellemeTarihi:'2026-04-15T08:00:00Z', Notlar:'', urunler:[{ID:101, IsEmriID:1001, UrunAdi:'SEW Eurodrive Redüktör', Kategori:'Redüktör', Seri:'R87-001', Aciklama:'', IlkBulgular:'Titreşim var', Gorsel1:'',Gorsel2:'',Gorsel3:''}], kalemler:[], toplamTutar:0 },
+      { ID:1002, MusteriID:2, SirketAdi:'Novotech Renewables', TeslimEden:'Selin Demir', Telefon:'+90 555 444 5566', TeslimTarihi:'2026-04-14', Durum:'Yapiliyor', AtananCalisan:'Fatma Çelik', OlusturmaTarihi:'2026-04-14T09:00:00Z', GuncellemeTarihi:'2026-04-14T09:00:00Z', Notlar:'', urunler:[{ID:102, IsEmriID:1002, UrunAdi:'Siemens Motor 15kW', Kategori:'Motor', Seri:'SIE-15-002', Aciklama:'', IlkBulgular:'Rulman sesi', Gorsel1:'',Gorsel2:'',Gorsel3:''}], kalemler:[{ID:201, IsEmriID:1002, Aciklama:'Rulman Değişimi', BirimFiyat:1200, KDV:20, Toplam:1440}], toplamTutar:1440 },
+      { ID:1003, MusteriID:1, SirketAdi:'Apex Heavy Industries', TeslimEden:'Mert Kaya', Telefon:'+90 555 111 2233', TeslimTarihi:'2026-04-10', Durum:'Yapildi', AtananCalisan:'Ahmet Yılmaz', OlusturmaTarihi:'2026-04-10T08:00:00Z', GuncellemeTarihi:'2026-04-17T16:00:00Z', Notlar:'', urunler:[{ID:103, IsEmriID:1003, UrunAdi:'ABB Motor M3BP', Kategori:'Motor', Seri:'ABB-160-003', Aciklama:'', IlkBulgular:'', Gorsel1:'',Gorsel2:'',Gorsel3:''}], kalemler:[{ID:202, IsEmriID:1003, Aciklama:'Sargı Yenileme', BirimFiyat:3500, KDV:20, Toplam:4200}], toplamTutar:4200 },
+      { ID:1004, MusteriID:3, SirketAdi:'Vanguard Marine', TeslimEden:'Can Öztürk', Telefon:'+90 555 777 8899', TeslimTarihi:'2026-04-08', Durum:'Revize', AtananCalisan:'Fatma Çelik', OlusturmaTarihi:'2026-04-08T10:00:00Z', GuncellemeTarihi:'2026-04-16T12:00:00Z', Notlar:'Müşteri memnun kalmadı', urunler:[{ID:104, IsEmriID:1004, UrunAdi:'SEW Eurodrive Redüktör R67', Kategori:'Redüktör', Seri:'R67-004', Aciklama:'', IlkBulgular:'Gürültü', Gorsel1:'',Gorsel2:'',Gorsel3:''}], kalemler:[{ID:203, IsEmriID:1004, Aciklama:'Dişli Değişimi', BirimFiyat:5000, KDV:20, Toplam:6000}], toplamTutar:6000 },
+    ],
+    musteriler: [
+      { ID:1, SirketAdi:'Apex Heavy Industries', TeslimEden:'Mert Kaya', Telefon:'+90 555 111 2233', Adres:'İstanbul, Türkiye', Email:'mert@apex.com', KayitTarihi:'2026-01-10T00:00:00Z', ToplamIsEmri:12 },
+      { ID:2, SirketAdi:'Novotech Renewables', TeslimEden:'Selin Demir', Telefon:'+90 555 444 5566', Adres:'İzmir, Türkiye', Email:'selin@novotech.com', KayitTarihi:'2026-02-20T00:00:00Z', ToplamIsEmri:5 },
+      { ID:3, SirketAdi:'Vanguard Marine', TeslimEden:'Can Öztürk', Telefon:'+90 555 777 8899', Adres:'Bursa, Türkiye', Email:'can@vanguard.com', KayitTarihi:'2026-03-05T00:00:00Z', ToplamIsEmri:3 },
+    ],
+    calisanlar: [
+      { ID:1, Ad:'Ahmet', Soyad:'Yılmaz', Unvan:'Kıdemli Teknisyen', Telefon:'+90 532 111 2222', Email:'ahmet@dinamoops.com', IseGirisTarihi:'2022-03-01T00:00:00Z', Durum:'Aktif' },
+      { ID:2, Ad:'Fatma', Soyad:'Çelik', Unvan:'Redüktör Uzmanı', Telefon:'+90 532 333 4444', Email:'fatma@dinamoops.com', IseGirisTarihi:'2023-06-15T00:00:00Z', Durum:'Aktif' },
+      { ID:3, Ad:'Kemal', Soyad:'Arslan', Unvan:'Elektrik Teknisyeni', Telefon:'+90 533 555 6666', Email:'kemal@dinamoops.com', IseGirisTarihi:'2024-01-10T00:00:00Z', Durum:'Aktif' },
+    ],
+    urunDB: [
+      { ID:1, UrunAdi:'Siemens Motor 1LE1001', Kategori:'Motor', Marka:'Siemens', Model:'1LE1001-1DB22', Aciklama:'15kW Asenkron Motor', VarsayilanProtokol:'Rulman kontrolü, sargı testi', OlusturmaTarihi:'2026-01-01T00:00:00Z' },
+      { ID:2, UrunAdi:'SEW Eurodrive R87', Kategori:'Redüktör', Marka:'SEW Eurodrive', Model:'R87 DRE100M4', Aciklama:'Helisel dişli redüktör', VarsayilanProtokol:'Yağ muayenesi, dişli kontrolü', OlusturmaTarihi:'2026-01-01T00:00:00Z' },
+      { ID:3, UrunAdi:'ABB Motor M3BP 160', Kategori:'Motor', Marka:'ABB', Model:'M3BP 160', Aciklama:'11kW Asenkron Motor 400V', VarsayilanProtokol:'Sargı direnci, izolasyon testi', OlusturmaTarihi:'2026-01-01T00:00:00Z' },
+    ],
+    yedekParca: [
+      { ID:1, ParcaAdi:'SKF Rulman 6205', Kategori:'Rulman', StokKodu:'6205-ZZ', Aciklama:'Motor ön rulmanı', OlusturmaTarihi:'2026-01-01T00:00:00Z' },
+      { ID:2, ParcaAdi:'NSK Rulman 6306', Kategori:'Rulman', StokKodu:'6306-2RS', Aciklama:'Motor arka rulmanı', OlusturmaTarihi:'2026-01-01T00:00:00Z' },
+    ],
+  };
+}
+
+function calcDemoAnalitik(db, tip) {
+  const iE = db.isEmirleri;
+  if (tip === 'ozet') {
+    const toplam = iE.length; const yapildi = iE.filter(x=>x.Durum==='Yapildi').length; const revize = iE.filter(x=>x.Durum==='Revize').length;
+    const toplamCiro = iE.flatMap(x=>x.kalemler||[]).reduce((s,k)=>s+(parseFloat(k.Toplam)||0),0);
+    return { toplam, yapildi, revize, devamEden: iE.filter(x=>x.Durum==='Yapiliyor').length, bekleyen: iE.filter(x=>x.Durum==='Is Emirleri').length, toplamCiro };
+  }
+  if (tip === 'revize') {
+    const r = iE.filter(x=>x.Durum==='Revize');
+    const cr = {}; r.forEach(x=>{ cr[x.AtananCalisan||'Atanmamış']=(cr[x.AtananCalisan||'Atanmamış']||0)+1; });
+    return { revizeSayisi: r.length, calisanRevize: Object.entries(cr).sort((a,b)=>b[1]-a[1]).map(([ad,sayi])=>({ad,sayi})), detay: r };
+  }
+  if (tip === 'calisan') {
+    const s = {}; iE.forEach(x=>{ const c=x.AtananCalisan||'Atanmamış'; if(!s[c]) s[c]={toplam:0,yapildi:0,revize:0,kategoriler:{}}; s[c].toplam++; if(x.Durum==='Yapildi') s[c].yapildi++; if(x.Durum==='Revize') s[c].revize++; (x.urunler||[]).forEach(u=>{ const k=u.Kategori||'Diğer'; s[c].kategoriler[k]=(s[c].kategoriler[k]||0)+1; }); }); return s;
+  }
+  if (tip === 'kategori') {
+    const s = {}; iE.forEach(x=>{ (x.urunler||[]).forEach(u=>{ const k=u.Kategori||'Diğer'; if(!s[k]) s[k]={toplam:0,revize:0}; s[k].toplam++; if(x.Durum==='Revize') s[k].revize++; }); }); return s;
+  }
+}
+
+// ╔══════════════════════════════════════════════════╗
+// ║  NAVIGATION                                      ║
+// ╚══════════════════════════════════════════════════╝
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const screen = document.getElementById('screen-' + name);
+  if (screen) {
+    screen.classList.add('active');
+  }
+  // Sadece sidebar ve mobile drawer içindeki nav-item'ları güncelle
+  document.querySelectorAll('#sidebar .nav-item, #mobile-nav .nav-item').forEach(n => {
+    n.classList.toggle('active', n.dataset.screen === name);
+  });
+  STATE.currentScreen = name;
+  // Bottom nav active state güncelle
+  document.querySelectorAll('.bottom-nav-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.bn === name);
+  });
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'musteriler') { loadMusteriler(); loadCalisanlar(); }
+  if (name === 'urundb') loadUrunDB();
+  if (name === 'analitik') loadAnalitik();
+  if (name === 'ayarlar') loadAyarlar();
+}
+
+document.querySelectorAll('[data-screen]').forEach(el => {
+  el.addEventListener('click', () => {
+    showScreen(el.dataset.screen);
+    // Mobile nav açıksa kapat
+    const mobileNav = document.getElementById('mobile-nav');
+    if (!mobileNav.classList.contains('hidden')) toggleMobileNav();
+  });
+});
+
+function toggleMobileNav() {
+  const nav = document.getElementById('mobile-nav');
+  nav.classList.toggle('hidden');
+}
+
+// ╔══════════════════════════════════════════════════╗
+// ║  MODALS                                          ║
+// ╚══════════════════════════════════════════════════╝
+function openModal(id) {
+  const m = document.getElementById(id);
+  if (m) { m.classList.add('open'); if(id==='modal-is-emri') initIsEmriForm(); }
+}
+function closeModal(id) {
+  const m = document.getElementById(id);
+  if (m) m.classList.remove('open');
+}
+document.querySelectorAll('.modal-backdrop').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+// ╔══════════════════════════════════════════════════╗
+// ║  TOAST                                           ║
+// ╚══════════════════════════════════════════════════╝
+function toast(msg, type = 'success', duration = 3000) {
+  const container = document.getElementById('toast');
+  const el = document.createElement('div');
+  el.className = `toast-item ${type}`;
+  el.innerHTML = `<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:6px">${type==='error'?'error':type==='info'?'info':'check_circle'}</span>${msg}`;
+  container.appendChild(el);
+  setTimeout(() => { el.style.opacity='0'; el.style.transform='translateY(8px)'; el.style.transition='all 0.3s'; setTimeout(()=>el.remove(), 300); }, duration);
+}
+
+// ╔══════════════════════════════════════════════════╗
+// ║  CLOCK                                           ║
+// ╚══════════════════════════════════════════════════╝
+function updateClock() {
+  const el = document.getElementById('live-clock');
+  if (el) el.textContent = new Date().toLocaleString('tr-TR', { weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ╔══════════════════════════════════════════════════╗
+// ║  DASHBOARD                                       ║
+// ╚══════════════════════════════════════════════════╝
+async function loadDashboard() {
+  const res = await api('isEmirleri_listele');
+  if (!res.success) return;
+  STATE.isEmirleri = res.data || [];
+
+  updateKPIs();
+  renderKanban(STATE.isEmirleri);
+  renderDashboardChart(STATE.isEmirleri);
+  renderDonut(STATE.isEmirleri);
+}
+
+function updateKPIs() {
+  const ie = STATE.isEmirleri;
+  document.getElementById('kpi-bekleyen').textContent = ie.filter(x=>x.Durum==='Is Emirleri').length;
+  document.getElementById('kpi-yapiliyor').textContent = ie.filter(x=>x.Durum==='Yapiliyor').length;
+  document.getElementById('kpi-yapildi').textContent = ie.filter(x=>x.Durum==='Yapildi').length;
+  document.getElementById('kpi-revize').textContent = ie.filter(x=>x.Durum==='Revize').length;
+}
+
+function renderDonut(ie) {
+  const yapildi = ie.filter(x=>x.Durum==='Yapildi').length;
+  const yapiliyor = ie.filter(x=>x.Durum==='Yapiliyor').length;
+  const revize = ie.filter(x=>x.Durum==='Revize').length;
+  const toplam = ie.length || 1;
+  const C = 302; // 2*pi*48 ≈ 302
+  let offset = 75; // -90deg start
+
+  function arc(count) { return (count/toplam)*C; }
+
+  const dY = arc(yapildi);
+  const dYY = arc(yapiliyor);
+  const dR = arc(revize);
+
+  // yapildi arc
+  const cY = document.getElementById('donut-yapildi');
+  cY.setAttribute('stroke-dasharray', `${dY} ${C-dY}`);
+  cY.setAttribute('stroke-dashoffset', offset);
+  offset = 75 - dY;
+
+  const cYY = document.getElementById('donut-yapiliyor');
+  cYY.setAttribute('stroke-dasharray', `${dYY} ${C-dYY}`);
+  cYY.setAttribute('stroke-dashoffset', offset);
+  offset -= dYY;
+
+  const cR = document.getElementById('donut-revize');
+  cR.setAttribute('stroke-dasharray', `${dR} ${C-dR}`);
+  cR.setAttribute('stroke-dashoffset', offset);
+
+  document.getElementById('donut-center-text').textContent = toplam;
+
+  document.getElementById('donut-legend').innerHTML = `
+    <div class="flex items-center justify-between text-sm"><div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-primary inline-block"></span><span>Tamamlanan</span></div><span class="font-bold text-primary">${yapildi}</span></div>
+    <div class="flex items-center justify-between text-sm"><div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-tertiary inline-block"></span><span>Yapılıyor</span></div><span class="font-bold text-tertiary">${yapiliyor}</span></div>
+    <div class="flex items-center justify-between text-sm"><div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-secondary-container inline-block"></span><span>Revize</span></div><span class="font-bold text-secondary">${revize}</span></div>
+  `;
+}
+
+function renderDashboardChart(ie) {
+  // Son 7 gün için açılan/kapanan sayılar
+  const days = [];
+  const opened = [];
+  const closed = [];
+  for (let i=6; i>=0; i--) {
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const ds = d.toISOString().slice(0,10);
+    days.push(d.toLocaleDateString('tr-TR',{weekday:'short'}));
+    opened.push(ie.filter(x=>x.OlusturmaTarihi&&x.OlusturmaTarihi.startsWith(ds)).length);
+    closed.push(ie.filter(x=>x.GuncellemeTarihi&&x.GuncellemeTarihi.startsWith(ds)&&(x.Durum==='Yapildi'||x.Durum==='Revize')).length);
+  }
+
+  const maxVal = Math.max(...opened, ...closed, 1);
+  const W=500, H=160, PAD=20;
+  const pts = opened.map((v,i) => `${PAD+i*(W-2*PAD)/6},${H-PAD-(v/maxVal)*(H-2*PAD)}`).join(' L');
+  const areaD = `M ${PAD},${H-PAD} L ${pts.replace('M','')} L ${PAD+(W-2*PAD)},${H-PAD} Z`;
+  const lineD = `M ${pts}`;
+
+  document.getElementById('chart-area').setAttribute('d', areaD);
+  document.getElementById('chart-line').setAttribute('d', lineD);
+
+  const dotsEl = document.getElementById('chart-dots');
+  dotsEl.innerHTML = '';
+  opened.forEach((v,i) => {
+    const x = PAD+i*(W-2*PAD)/6;
+    const y = H-PAD-(v/maxVal)*(H-2*PAD);
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx', x); c.setAttribute('cy', y);
+    c.setAttribute('class','chart-dot'); c.setAttribute('r','4');
+    c.innerHTML = `<title>${days[i]}: ${v} açılan</title>`;
+    dotsEl.appendChild(c);
+  });
+
+  document.getElementById('chart-x-labels').innerHTML = days.map(d=>`<span>${d}</span>`).join('');
+}
+
+// ╔══════════════════════════════════════════════════╗
+// ║  KANBAN                                          ║
+// ╚══════════════════════════════════════════════════╝
+const KOLONLAR = [
+  { id:'Is Emirleri', label:'İş Emirleri', color:'#727780', dot:'bg-outline' },
+  { id:'Yapiliyor',   label:'Yapılıyor',  color:'#00344e', dot:'bg-tertiary' },
+  { id:'Yapildi',     label:'Yapıldı',    color:'#003358', dot:'bg-primary-container' },
+  { id:'Revize',      label:'Revize',     color:'#855300', dot:'bg-secondary-container' },
+];
+
+function renderKanban(isEmirleri, filterQ='') {
+  const board = document.getElementById('kanban-board');
+  board.innerHTML = '';
+
+  KOLONLAR.forEach(kol => {
+    const cards = isEmirleri.filter(ie =>
+      ie.Durum === kol.id &&
+      (!filterQ || ie.SirketAdi.toLowerCase().includes(filterQ) || ie.urunler?.some(u=>u.UrunAdi.toLowerCase().includes(filterQ)))
+    );
+
+    const col = document.createElement('div');
+    col.className = 'kanban-col flex-none w-80 bg-surface-container-low rounded-2xl p-4 flex flex-col gap-3';
+    col.dataset.durum = kol.id;
+
+    col.innerHTML = `
+      <div class="flex items-center justify-between pb-2">
+        <h4 class="text-sm font-label font-bold text-primary flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full ${kol.dot}"></span>${kol.label}
+        </h4>
+        <span class="text-xs font-label text-on-surface-variant bg-surface-container-highest px-2.5 py-1 rounded-full font-semibold">${cards.length}</span>
+      </div>
+      <div class="kanban-drop-zone flex flex-col gap-3" id="zone-${kol.id.replace(/\s/g,'_')}"></div>
+    `;
+
+    board.appendChild(col);
+    const zone = col.querySelector('.kanban-drop-zone');
+
+    cards.forEach(ie => {
+      const card = createKanbanCard(ie);
+      zone.appendChild(card);
+    });
+
+    setupDropZone(zone);
+  });
+}
+
+function createKanbanCard(ie) {
+  const card = document.createElement('div');
+  card.className = 'kanban-card bg-surface-container-lowest rounded-xl p-4 ghost-border shadow-ambient flex flex-col gap-2.5';
+  card.dataset.id = ie.ID;
+  card.draggable = true;
+
+  const urunListesi = (ie.urunler||[]).map(u=>u.UrunAdi).filter(Boolean).join(', ') || 'Ürün yok';
+  const durum = ie.Durum;
+  const badgeClass = durum==='Revize'?'badge-revize':durum==='Yapildi'?'badge-ok':durum==='Yapiliyor'?'badge-progress':'badge';
+
+  let topBar = '';
+  if (durum==='Yapiliyor') topBar = `<div class="absolute top-0 left-0 right-0 h-1 bg-tertiary rounded-t-xl"></div>`;
+  if (durum==='Revize') topBar = `<div class="absolute top-0 left-0 right-0 h-1 bg-secondary-container rounded-t-xl"></div>`;
+  if (durum==='Yapildi') topBar = `<div class="absolute top-0 left-0 right-0 h-1 bg-primary rounded-t-xl"></div>`;
+
+  card.innerHTML = `
+    ${topBar ? `<div class="relative">${topBar}</div>` : ''}
+    <div class="flex items-start justify-between gap-2">
+      <span class="text-xs font-label font-bold text-primary bg-surface-container px-2 py-0.5 rounded-md">#${ie.ID}</span>
+      <span class="badge ${badgeClass}">${durum==='Is Emirleri'?'Bekliyor':durum}</span>
+    </div>
+    <div>
+      <div class="font-headline font-bold text-sm text-on-surface leading-tight">${ie.SirketAdi}</div>
+      <div class="text-xs text-on-surface-variant mt-0.5 line-clamp-1">${urunListesi}</div>
+    </div>
+    ${ie.AtananCalisan ? `<div class="flex items-center gap-1.5 text-xs text-on-surface-variant"><span class="material-symbols-outlined" style="font-size:14px">engineering</span>${ie.AtananCalisan}</div>` : ''}
+    <div class="flex items-center justify-between pt-2 border-t border-surface-container">
+      <span class="text-xs text-on-surface-variant">${ie.TeslimTarihi||''}</span>
+      <div class="flex gap-1.5">
+        <button onclick="openBakimDetay(${ie.ID})" class="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center hover:bg-surface-container-high transition-colors" title="Detay">
+          <span class="material-symbols-outlined" style="font-size:15px">open_in_new</span>
+        </button>
+        <button onclick="openWpModal(${ie.ID})" class="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center hover:bg-[#25D366] hover:text-white transition-colors" title="WhatsApp">
+          <span class="material-symbols-outlined text-[#25D366] hover:text-white" style="font-size:15px">chat</span>
+        </button>
+        <button onclick="confirmDelete(${ie.ID})" class="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center hover:bg-error-container transition-colors" title="Sil">
+          <span class="material-symbols-outlined text-error" style="font-size:15px">delete</span>
+        </button>
+      </div>
+    </div>
+  `;
+
+  // Drag events
+  card.addEventListener('dragstart', e => {
+    STATE.dragItem = ie.ID;
+    card.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', ie.ID);
+  });
+  card.addEventListener('dragend', () => card.classList.remove('dragging'));
+
+  return card;
+}
+
+function setupDropZone(zone) {
+  zone.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    zone.classList.add('over');
+  });
+  zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+  zone.addEventListener('drop', async e => {
+    e.preventDefault();
+    zone.classList.remove('over');
+    const id = e.dataTransfer.getData('text/plain') || STATE.dragItem;
+    const newDurum = zone.closest('[data-durum]').dataset.durum;
+
+    if (!id || !newDurum) return;
+
+    // Optimistic UI update
+    const ie = STATE.isEmirleri.find(x => String(x.ID) === String(id));
+    if (!ie) return;
+    if (ie.Durum === newDurum) return;
+
+    ie.Durum = newDurum;
+    renderKanban(STATE.isEmirleri);
+    updateKPIs();
+    renderDonut(STATE.isEmirleri);
+
+    const res = await api('isEmri_durumGuncelle', { id, durum: newDurum });
+    if (res.success) {
+      toast(`Durum güncellendi: ${newDurum}`, 'success');
+      if (newDurum === 'Yapildi') showWpPrompt(id);
+    } else {
+      toast('Güncelleme hatası', 'error');
+      // Rollback
+      await loadDashboard();
+    }
+  });
+}
+
+function filterKanban(q) {
+  renderKanban(STATE.isEmirleri, q.toLowerCase());
+}
+
+function showWpPrompt(id) {
+  const ie = STATE.isEmirleri.find(x => String(x.ID) === String(id));
+  if (!ie) return;
+  if (confirm(`"${ie.SirketAdi}" müşterisine WhatsApp ile bildirim göndermek ister misiniz?`)) {
+    openWpModal(id);
+  }
+}
+
+async function confirmDelete(id) {
+  if (!confirm('Bu iş emrini silmek istediğinizden emin misiniz?')) return;
+  const res = await api('isEmri_sil', { id });
+  if (res.success) {
+    STATE.isEmirleri = STATE.isEmirleri.filter(x => String(x.ID) !== String(id));
+    renderKanban(STATE.isEmirleri);
+    updateKPIs();
+    renderDonut(STATE.isEmirleri);
+    toast('İş emri silindi');
+  }
+}
+
+// ╔══════════════════════════════════════════════════╗
+// ║  İŞ EMRİ FORMU                                   ║
+// ╚══════════════════════════════════════════════════╝
+let urunRowCount = 0;
+
+async function initIsEmriForm() {
+  // Tarihi bugün yap
+  const tarihEl = document.getElementById('ie-tarih');
+  if (tarihEl) tarihEl.value = new Date().toISOString().slice(0,10);
+
+  // Çalışan select doldur
+  if (STATE.calisanlar.length === 0) {
+    const res = await api('calisanlar_listele');
+    if (res.success) STATE.calisanlar = res.data || [];
+  }
+  const calisanSel = document.getElementById('ie-calisan');
+  calisanSel.innerHTML = '<option value="">Çalışan seçin (opsiyonel)</option>' +
+    STATE.calisanlar.map(c => `<option value="${c.Ad} ${c.Soyad}">${c.Ad} ${c.Soyad} — ${c.Unvan||''}</option>`).join('');
+
+  // Ürün listesini sıfırla
+  document.getElementById('urun-listesi').innerHTML = '';
+  urunRowCount = 0;
+  addUrunRow();
+
+  // Müşteri verisini yükle
+  if (STATE.musteriler.length === 0) {
+    const mr = await api('musteriler_listele');
+    if (mr.success) STATE.musteriler = mr.data || [];
+  }
+}
+
+function addUrunRow() {
+  urunRowCount++;
+  const list = document.getElementById('urun-listesi');
+  const div = document.createElement('div');
+  div.className = 'bg-surface-container-highest rounded-xl p-5 border border-outline-variant/15 relative group';
+  div.dataset.urunRow = urunRowCount;
+
+  div.innerHTML = `
+    ${urunRowCount > 1 ? `<button type="button" onclick="removeUrunRow(this)" class="absolute top-4 right-4 text-on-surface-variant/40 hover:text-error transition-colors opacity-0 group-hover:opacity-100">
+      <span class="material-symbols-outlined" style="font-size:18px">delete</span>
+    </button>` : ''}
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">${urunRowCount}</div>
+      <h4 class="font-headline font-semibold text-primary text-sm">Ürün ${urunRowCount}</h4>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="relative">
+        <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Ürün Adı / Makine *</label>
+        <input type="text" class="urun-adi f-input rounded-t-lg" placeholder="Ürün adı girin..." autocomplete="off" oninput="urunAutoComplete(this)"/>
+        <div class="urun-autocomplete autocomplete-list hidden"></div>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Kategori</label>
+        <select class="urun-kategori f-input f-select rounded-t-lg">
+          <option value="">Kategori seçin</option>
+          ${STATE.kategoriler.map(k=>`<option>${k}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Seri / Model No</label>
+        <input type="text" class="urun-seri f-input rounded-t-lg" placeholder="SN-12345"/>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">İlk Bulgular</label>
+        <input type="text" class="urun-bulgular f-input rounded-t-lg" placeholder="Gürültü, titreşim, ısınma..."/>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Açıklama</label>
+        <textarea class="urun-aciklama f-input rounded-t-lg resize-none" rows="2" placeholder="Ek bilgiler..."></textarea>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Fotoğraflar (İlk Durum)</label>
+        <div class="flex gap-3">
+          ${[1,2,3].map(i=>`
+          <label class="flex-1 aspect-video bg-surface-container border-2 border-dashed border-outline-variant/30 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-surface-container-high transition-colors group/photo overflow-hidden">
+            <input type="file" class="urun-gorsel-${i} hidden" accept="image/*" onchange="previewGorsel(this)"/>
+            <div class="img-preview w-full h-full object-cover hidden"></div>
+            <span class="material-symbols-outlined text-outline group-hover/photo:text-primary transition-colors" style="font-size:24px">add_a_photo</span>
+            <span class="text-xs text-on-surface-variant mt-1">Foto ${i}</span>
+          </label>`).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+
+  list.appendChild(div);
+  document.getElementById('urun-sayac').textContent = urunRowCount + ' Ürün';
+}
+
+function removeUrunRow(btn) {
+  btn.closest('[data-urun-row]').remove();
+  urunRowCount--;
+  document.getElementById('urun-sayac').textContent = urunRowCount + ' Ürün';
+}
+
+function previewGorsel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const preview = input.closest('label').querySelector('.img-preview');
+  const icon = input.closest('label').querySelector('span.material-symbols-outlined');
+  const txt = input.closest('label').querySelector('span.text-xs');
+  const reader = new FileReader();
+  reader.onload = e => {
+    preview.style.backgroundImage = `url(${e.target.result})`;
+    preview.style.backgroundSize = 'cover';
+    preview.style.backgroundPosition = 'center';
+    preview.classList.remove('hidden');
+    preview.classList.add('absolute','inset-0');
+    if(icon) icon.classList.add('hidden');
+    if(txt) txt.classList.add('hidden');
+  };
+  reader.readAsDataURL(file);
+}
+
+async function sirketAutoComplete(q) {
+  if (q.length < 2) { document.getElementById('sirket-autocomplete').classList.add('hidden'); return; }
+  
+  const matches = STATE.musteriler.filter(m => m.SirketAdi.toLowerCase().includes(q.toLowerCase())).slice(0,6);
+  const list = document.getElementById('sirket-autocomplete');
+
+  if (!matches.length) { list.classList.add('hidden'); return; }
+
+  list.innerHTML = matches.map(m => `
+    <div class="autocomplete-item" onclick="fillSirket('${escHtml(m.SirketAdi)}','${escHtml(m.TeslimEden||'')}','${escHtml(m.Telefon||'')}')">
+      <span class="font-semibold text-on-surface">${m.SirketAdi}</span>
+      <span class="text-xs text-on-surface-variant">${m.TeslimEden||''} • ${m.Telefon||''}</span>
+    </div>
+  `).join('');
+  list.classList.remove('hidden');
+}
+
+function fillSirket(sirket, kisi, tel) {
+  document.getElementById('ie-sirket').value = sirket;
+  document.getElementById('ie-teslimeden').value = kisi;
+  document.getElementById('ie-telefon').value = tel;
+  document.getElementById('sirket-autocomplete').classList.add('hidden');
+}
+
+async function urunAutoComplete(input) {
+  const q = input.value;
+  if (q.length < 2) { input.nextElementSibling.classList.add('hidden'); return; }
+
+  if (STATE.urunDB.length === 0) {
+    const r = await api('urunDB_listele');
+    if (r.success) STATE.urunDB = r.data||[];
+  }
+
+  const matches = STATE.urunDB.filter(u => u.UrunAdi.toLowerCase().includes(q.toLowerCase())).slice(0,5);
+  const list = input.nextElementSibling;
+
+  if (!matches.length) { list.classList.add('hidden'); return; }
+
+  list.innerHTML = matches.map(u => `
+    <div class="autocomplete-item" onclick="fillUrun(this, '${escHtml(u.UrunAdi)}','${escHtml(u.Kategori||'')}','${escHtml(u.Model||'')}')">
+      <span class="font-semibold text-on-surface">${u.UrunAdi}</span>
+      <span class="text-xs text-on-surface-variant">${u.Marka||''} ${u.Model||''} • ${u.Kategori||''}</span>
+    </div>
+  `).join('');
+  list.classList.remove('hidden');
+}
+
+function fillUrun(el, ad, kat, model) {
+  const row = el.closest('[data-urun-row]');
+  row.querySelector('.urun-adi').value = ad;
+  row.querySelector('.urun-kategori').value = kat;
+  if (model) row.querySelector('.urun-seri').value = model;
+  el.closest('.autocomplete-list').classList.add('hidden');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.autocomplete-list') && !e.target.closest('#ie-sirket')) {
+    document.querySelectorAll('.autocomplete-list').forEach(l => l.classList.add('hidden'));
+  }
+});
+
+async function submitIsEmri() {
+  const sirket = document.getElementById('ie-sirket').value.trim();
+  const teslimEden = document.getElementById('ie-teslimeden').value.trim();
+  const tarih = document.getElementById('ie-tarih').value;
+
+  if (!sirket) { toast('Şirket adı zorunludur', 'error'); return; }
+  if (!tarih) { toast('Teslim tarihi zorunludur', 'error'); return; }
+
+  // Ürünleri topla
+  const urunRows = document.querySelectorAll('[data-urun-row]');
+  const urunler = [];
+  for (const row of urunRows) {
+    const urunAdi = row.querySelector('.urun-adi').value.trim();
+    if (!urunAdi) continue;
+    urunler.push({
+      urunAdi,
+      kategori: row.querySelector('.urun-kategori').value,
+      seri: row.querySelector('.urun-seri').value,
+      ilkBulgular: row.querySelector('.urun-bulgular').value,
+      aciklama: row.querySelector('.urun-aciklama').value,
+    });
+  }
+
+  if (!urunler.length) { toast('En az bir ürün eklenmeli', 'error'); return; }
+
+  const btn = document.getElementById('btn-submit-isemri');
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Kaydediliyor...`;
+
+  const res = await api('isEmri_olustur', {
+    sirketAdi: sirket,
+    teslimEden,
+    telefon: document.getElementById('ie-telefon').value,
+    teslimTarihi: tarih,
+    atananCalisan: document.getElementById('ie-calisan').value,
+    urunler,
+  });
+
+  btn.disabled = false;
+  btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:16px">play_arrow</span> İş Emrini Başlat`;
+
+  if (res.success || res.id) {
+    toast('İş emri oluşturuldu! #' + (res.id||''), 'success');
+    closeModal('modal-is-emri');
+    await loadDashboard();
+  } else {
+    toast('Hata: ' + (res.hata||JSON.stringify(res)), 'error');
+  }
+}
+
+// ╔══════════════════════════════════════════════════╗
+// ║  BAKIM KARTI DETAY                               ║
+// ╚══════════════════════════════════════════════════╝
+async function openBakimDetay(id) {
+  const res = await api('isEmri_getir', { id });
+  if (!res.success || !res.data) { toast('İş emri bulunamadı','error'); return; }
+
+  STATE.currentBakimDetayId = id;
+  const ie = res.data;
+  renderBakimDetay(ie);
+  showScreen('bakim-detay');
+}
+
+function renderBakimDetay(ie) {
+  const urunler = ie.urunler || [];
+  const kalemler = ie.kalemler || [];
+
+  const durumBadge = {
+    'Is Emirleri':'<span class="badge bg-surface-container-high text-on-surface">Bekliyor</span>',
+    'Yapiliyor':'<span class="badge badge-progress">Yapılıyor</span>',
+    'Yapildi':'<span class="badge badge-ok">Tamamlandı</span>',
+    'Revize':'<span class="badge badge-revize">Revize</span>',
+  };
+
+  const container = document.getElementById('bakim-detay-content');
+  container.innerHTML = `
+    <!-- Breadcrumb -->
+    <div class="flex items-center gap-2 mb-6 text-sm text-on-surface-variant">
+      <button onclick="showScreen('dashboard')" class="hover:text-primary transition-colors flex items-center gap-1">
+        <span class="material-symbols-outlined" style="font-size:16px">arrow_back</span> Dashboard
+      </button>
+      <span class="material-symbols-outlined" style="font-size:14px">chevron_right</span>
+      <span class="text-primary font-semibold">#${ie.ID} — ${ie.SirketAdi}</span>
+    </div>
+
+    <!-- Header card -->
+    <div class="bg-surface-container-lowest rounded-2xl p-6 shadow-ambient ghost-border flex flex-col md:flex-row md:justify-between md:items-end gap-5 mb-8">
+      <div class="flex items-start gap-5">
+        <div class="w-16 h-16 rounded-xl bg-surface-container flex items-center justify-center text-primary shrink-0">
+          <span class="material-symbols-outlined" style="font-size:32px">precision_manufacturing</span>
+        </div>
+        <div>
+          <div class="flex items-center gap-3 mb-1">
+            <h1 class="font-headline text-2xl font-black text-primary">${ie.SirketAdi}</h1>
+            ${durumBadge[ie.Durum]||''}
+          </div>
+          <p class="text-on-surface-variant text-sm">Teslim Eden: <span class="font-semibold text-on-surface">${ie.TeslimEden||'—'}</span></p>
+          <p class="text-on-surface-variant text-sm mt-0.5">
+            <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">call</span>
+            <a href="tel:${ie.Telefon||''}" class="hover:text-primary transition-colors ml-1">${ie.Telefon||'—'}</a>
+          </p>
+          <p class="text-xs text-on-surface-variant mt-1">Teslim tarihi: ${ie.TeslimTarihi||'—'} &nbsp;|&nbsp; İş emri: #${ie.ID}</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <select id="detay-durum-sel" onchange="updateDetayDurum()" class="f-input f-select rounded-lg text-sm py-2">
+          ${['Is Emirleri','Yapiliyor','Yapildi','Revize'].map(d=>`<option value="${d}" ${ie.Durum===d?'selected':''}>${d==='Is Emirleri'?'Bekliyor':d}</option>`).join('')}
+        </select>
+        <button onclick="openWpModal(${ie.ID})" class="bg-[#25D366] text-white text-sm font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:opacity-90 transition-opacity shadow-ambient">
+          <span class="material-symbols-outlined" style="font-size:16px">chat</span> WhatsApp PDF
+        </button>
+        <button onclick="exportPDF(${ie.ID})" class="btn-primary text-white text-sm font-bold px-4 py-2 rounded-lg flex items-center gap-2 shadow-ambient">
+          <span class="material-symbols-outlined" style="font-size:16px">picture_as_pdf</span> PDF İndir
+        </button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <!-- Sol kolon -->
+      <div class="lg:col-span-2 space-y-6">
+
+        <!-- Ürünler -->
+        <section class="bg-surface-container-lowest rounded-2xl p-6 shadow-ambient ghost-border">
+          <h3 class="font-headline font-bold text-primary mb-5 flex items-center gap-2">
+            <span class="material-symbols-outlined" style="font-size:20px">precision_manufacturing</span> Ürünler / Makineler
+          </h3>
+          ${urunler.map(u => `
+            <div class="bg-surface-container-low rounded-xl p-4 mb-3 last:mb-0">
+              <div class="flex justify-between items-start mb-2">
+                <div class="font-headline font-bold text-on-surface">${u.UrunAdi}</div>
+                <span class="badge badge-progress">${u.Kategori||'—'}</span>
+              </div>
+              <div class="text-sm text-on-surface-variant space-y-1">
+                ${u.Seri ? `<div>Seri: <span class="font-medium text-on-surface">${u.Seri}</span></div>` : ''}
+                ${u.IlkBulgular ? `<div class="text-sm bg-error-container/30 rounded-lg px-3 py-2 text-error font-medium">⚠️ İlk bulgular: ${u.IlkBulgular}</div>` : ''}
+                ${u.Aciklama ? `<div class="text-sm">${u.Aciklama}</div>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </section>
+
+        <!-- Fiyatlandırma -->
+        <section class="bg-surface-container-lowest rounded-2xl p-6 shadow-ambient ghost-border">
+          <div class="flex justify-between items-center mb-5">
+            <h3 class="font-headline font-bold text-primary flex items-center gap-2">
+              <span class="material-symbols-outlined" style="font-size:20px">receipt_long</span> Yapılan İşlemler & Fiyatlandırma
+            </h3>
+            <button onclick="addKalemRow()" class="flex items-center gap-1.5 text-primary text-sm font-bold hover:bg-surface-container px-3 py-1.5 rounded-lg transition-colors">
+              <span class="material-symbols-outlined" style="font-size:16px">add_circle</span> Kalem Ekle
+            </button>
+          </div>
+
+          <div id="kalem-listesi" class="space-y-2 mb-4 tbl-wrap">
+            ${kalemler.length === 0 ? `<div class="text-center py-6 text-on-surface-variant text-sm">Henüz kalem eklenmedi</div>` :
+              kalemler.map(k => createKalemHTML(k)).join('')
+            }
+          </div>
+
+          <!-- Totals -->
+          <div class="flex justify-end mt-4">
+            <div class="w-72 bg-surface-container rounded-xl p-4 space-y-2">
+              <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Ara Toplam</span><span class="font-medium" id="bd-subtotal">₺0.00</span></div>
+              <div class="flex justify-between text-sm"><span class="text-on-surface-variant">KDV Toplamı</span><span class="font-medium" id="bd-vat">₺0.00</span></div>
+              <div class="border-t border-outline-variant/20 pt-2 flex justify-between font-bold text-primary text-base"><span>Toplam</span><span id="bd-total">₺0.00</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Görsel Dokümantasyon -->
+        <section class="bg-surface-container-lowest rounded-2xl p-6 shadow-ambient ghost-border">
+          <div class="flex justify-between items-center mb-5">
+            <h3 class="font-headline font-bold text-primary flex items-center gap-2">
+              <span class="material-symbols-outlined" style="font-size:20px">photo_camera</span> Görsel Dokümantasyon
+            </h3>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <h4 class="text-xs font-label font-bold text-outline uppercase tracking-wider border-b border-surface-container pb-2 mb-3">Teslim Alım Durumu</h4>
+              <div class="grid grid-cols-2 gap-3">
+                ${urunler.flatMap(u=>[u.Gorsel1,u.Gorsel2,u.Gorsel3].filter(Boolean)).slice(0,4).map(g=>`
+                  <div class="aspect-square bg-surface-container rounded-xl overflow-hidden ghost-border">
+                    <img src="${g}" class="w-full h-full object-cover"/>
+                  </div>
+                `).join('') || '<div class="col-span-2 text-xs text-on-surface-variant py-4 text-center">Görsel yüklenmedi</div>'}
+              </div>
+            </div>
+            <div>
+              <h4 class="text-xs font-label font-bold text-outline uppercase tracking-wider border-b border-surface-container pb-2 mb-3">Teslim Durumu (Sonrası)</h4>
+              <div class="grid grid-cols-2 gap-3">
+                <label class="aspect-square bg-surface-container border-2 border-dashed border-outline-variant/30 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-surface-container-high transition-colors">
+                  <input type="file" class="hidden" accept="image/*"/>
+                  <span class="material-symbols-outlined text-outline" style="font-size:24px">add_a_photo</span>
+                  <span class="text-xs text-on-surface-variant mt-1">Ekle</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Sağ kolon -->
+      <div class="space-y-6">
+        <!-- Atanan Teknisyen -->
+        <section class="bg-surface-container-lowest rounded-2xl p-5 shadow-ambient ghost-border">
+          <h4 class="text-xs font-label font-bold text-outline uppercase tracking-wider mb-4 flex items-center gap-2">
+            <span class="material-symbols-outlined" style="font-size:16px">engineering</span> Atanan Teknisyen
+          </h4>
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center font-bold text-primary font-headline">
+              ${(ie.AtananCalisan||'?').charAt(0)}
+            </div>
+            <div>
+              <div class="font-headline font-bold text-on-surface text-sm">${ie.AtananCalisan||'Atanmamış'}</div>
+            </div>
+          </div>
+          <select id="bd-calisan-sel" class="f-input f-select rounded-t-lg text-sm" onchange="updateDetayCalisan()">
+            <option value="">Yeniden ata...</option>
+            ${STATE.calisanlar.map(c=>`<option value="${c.Ad} ${c.Soyad}">${c.Ad} ${c.Soyad}</option>`).join('')}
+          </select>
+        </section>
+
+        <!-- Notlar -->
+        <section class="bg-surface-container-lowest rounded-2xl p-5 shadow-ambient ghost-border">
+          <h4 class="text-xs font-label font-bold text-outline uppercase tracking-wider mb-4 flex items-center gap-2">
+            <span class="material-symbols-outlined" style="font-size:16px">edit_note</span> Notlar
+          </h4>
+          <textarea id="bd-notlar" class="f-input rounded-t-lg resize-none" rows="4" placeholder="İç not ekle...">${ie.Notlar||''}</textarea>
+          <button onclick="saveNotlar()" class="mt-3 w-full py-2 bg-surface-container rounded-lg text-sm font-bold text-primary hover:bg-surface-container-high transition-colors">Kaydet</button>
+        </section>
+      </div>
+    </div>
+  `;
+
+  // Kalem toplamları hesapla
+  calcBakimTotals(kalemler);
+}
+
+function createKalemHTML(k) {
+  const ac  = k.Aciklama  || k.aciklama  || '';
+  const ad  = parseFloat(k.Adet || k.adet) || 1;
+  const fp  = parseFloat(k.BirimFiyat || k.birimFiyat) || 0;
+  const kdv = parseFloat(k.KDV || k.kdv) || 0;
+  const top = (ad * fp * (1 + kdv/100)).toFixed(2);
+  const kid = k.ID || '';
+  return [
+    '<div class="kalem-row flex items-center gap-3 bg-surface-container-low rounded-xl p-3 flex-wrap" data-kalem-id="' + kid + '">',
+      '<div class="flex-1 min-w-0" style="position:relative;min-width:140px">',
+        '<label class="block text-xs text-on-surface-variant font-semibold mb-1">Açıklama</label>',
+        '<input type="text" value="' + escHtml(ac) + '" class="kalem-aciklama f-input rounded-t-lg text-sm" placeholder="İşlem / ürün adı..." autocomplete="off" oninput="kalemAciklamaAutoComplete(this)" onblur="setTimeout(()=>{const l=this.parentElement.querySelector(\'.kalem-autocomplete-list\');if(l)l.classList.add(\'hidden\')},150)"/>',
+      '</div>',
+      '<div class="w-16">',
+        '<label class="block text-xs text-on-surface-variant font-semibold mb-1">Adet</label>',
+        '<input type="number" value="' + ad + '" class="kalem-adet f-input rounded-t-lg text-sm text-right" step="1" min="1" placeholder="1" oninput="updateKalemToplam(this)"/>',
+      '</div>',
+      '<div class="w-28">',
+        '<label class="block text-xs text-on-surface-variant font-semibold mb-1">Birim Fiyat (₺)</label>',
+        '<input type="number" value="' + fp + '" class="kalem-fiyat f-input rounded-t-lg text-sm text-right" step="0.01" min="0" placeholder="0.00" oninput="updateKalemToplam(this)"/>',
+      '</div>',
+      '<div class="w-20">',
+        '<label class="block text-xs text-on-surface-variant font-semibold mb-1">KDV</label>',
+        '<select class="kalem-kdv f-input f-select rounded-t-lg text-sm" onchange="updateKalemToplam(this)">',
+          '<option value="0"' + (kdv==0?' selected':'') + '>%0</option>',
+          '<option value="10"' + (kdv==10?' selected':'') + '>%10</option>',
+          '<option value="20"' + (kdv==20?' selected':'') + '>%20</option>',
+        '</select>',
+      '</div>',
+      '<div class="w-24 text-right">',
+        '<label class="block text-xs text-on-surface-variant font-semibold mb-1">Toplam</label>',
+        '<div class="font-bold text-sm text-primary kalem-toplam-display pt-2">\u20ba' + top + '</div>',
+      '</div>',
+      '<div class="flex gap-1 items-end pb-1">',
+        '<button onclick="saveKalem(this)" class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors" title="Kaydet">',
+          '<span class="material-symbols-outlined text-primary" style="font-size:16px">save</span>',
+        '</button>',
+        '<button onclick="deleteKalem(this)" class="w-8 h-8 rounded-lg hover:bg-error-container flex items-center justify-center transition-colors" title="Sil">',
+          '<span class="material-symbols-outlined text-error" style="font-size:16px">delete</span>',
+        '</button>',
+      '</div>',
+    '</div>'
+  ].join('');
+}
+
+
+async function addKalemRow() {
+  const kalemListesi = document.getElementById('kalem-listesi');
+  if (kalemListesi.querySelector('.text-center')) kalemListesi.innerHTML = '';
+
+  const tempId = 'new-' + Date.now();
+  const div = document.createElement('div');
+  div.className = 'kalem-row flex items-center gap-3 bg-surface-container-low rounded-xl p-3';
+  div.dataset.kalemId = tempId;
+  div.innerHTML = `
+    <div class="flex-1 min-w-0" style="position:relative;min-width:140px">
+      <label class="block text-xs text-on-surface-variant font-semibold mb-1">Açıklama</label>
+      <input type="text" class="kalem-aciklama f-input rounded-t-lg text-sm" placeholder="İşlem / ürün adı..." autocomplete="off" oninput="kalemAciklamaAutoComplete(this)" onblur="setTimeout(()=>{const l=this.parentElement.querySelector('.kalem-autocomplete-list');if(l)l.classList.add('hidden')},150)"/>
+    </div>
+    <div class="w-16">
+      <label class="block text-xs text-on-surface-variant font-semibold mb-1">Adet</label>
+      <input type="number" value="1" class="kalem-adet f-input rounded-t-lg text-sm text-right" step="1" min="1" oninput="updateKalemToplam(this)"/>
+    </div>
+    <div class="w-28">
+      <label class="block text-xs text-on-surface-variant font-semibold mb-1">Birim Fiyat (₺)</label>
+      <input type="number" value="0" class="kalem-fiyat f-input rounded-t-lg text-sm text-right" step="0.01" min="0" oninput="updateKalemToplam(this)"/>
+    </div>
+    <div class="w-20">
+      <label class="block text-xs text-on-surface-variant font-semibold mb-1">KDV</label>
+      <select class="kalem-kdv f-input f-select rounded-t-lg text-sm" onchange="updateKalemToplam(this)">
+        <option value="0">%0</option>
+        <option value="10">%10</option>
+        <option value="20" selected>%20</option>
+      </select>
+    </div>
+    <div class="w-24 text-right">
+      <label class="block text-xs text-on-surface-variant font-semibold mb-1">Toplam</label>
+      <div class="font-bold text-sm text-primary kalem-toplam-display pt-2">₺0.00</div>
+    </div>
+    <div class="flex gap-1">
+      <button onclick="saveKalem(this)" class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors">
+        <span class="material-symbols-outlined text-primary" style="font-size:16px">save</span>
+      </button>
+      <button onclick="deleteKalem(this)" class="w-8 h-8 rounded-lg hover:bg-error-container flex items-center justify-center transition-colors">
+        <span class="material-symbols-outlined text-error" style="font-size:16px">delete</span>
+      </button>
+    </div>
+  `;
+  kalemListesi.appendChild(div);
+
+  // Adet alanına odaklan
+  div.querySelector('.kalem-aciklama').focus();
+}
+
+function updateKalemToplam(el) {
+  const row = el.closest('.kalem-row');
+  if (!row) return;
+  const adet  = parseFloat(row.querySelector('.kalem-adet').value) || 1;
+  const fiyat = parseFloat(row.querySelector('.kalem-fiyat').value) || 0;
+  const kdv   = parseFloat(row.querySelector('.kalem-kdv').value) || 0;
+  const toplam = adet * fiyat * (1 + kdv / 100);
+  row.querySelector('.kalem-toplam-display').textContent = '₺' + toplam.toFixed(2);
+  recalcBakimTotals();
+}
+
+async function saveKalem(btn) {
+  const row = btn.closest('.kalem-row');
+  const id = row.dataset.kalemId;
+  const aciklama  = row.querySelector('.kalem-aciklama').value.trim();
+  const adet      = parseFloat(row.querySelector('.kalem-adet').value) || 1;
+  const birimFiyat = parseFloat(row.querySelector('.kalem-fiyat').value) || 0;
+  const kdv       = parseFloat(row.querySelector('.kalem-kdv').value) || 0;
+  const toplam    = adet * birimFiyat * (1 + kdv / 100);
+
+  if (!aciklama) { toast('Açıklama gerekli', 'error'); return; }
+
+  const isNew = String(id).startsWith('new-');
+  let res;
+  if (isNew) {
+    res = await api('kalem_ekle', { isEmriID: STATE.currentBakimDetayId, aciklama, adet, birimFiyat, kdv });
+    if (res.success || res.id) { row.dataset.kalemId = res.id || row.dataset.kalemId; toast('Kalem eklendi'); }
+  } else {
+    res = await api('kalem_guncelle', { id, aciklama, adet, birimFiyat, kdv });
+    if (res.success || res.mesaj) toast('Kalem güncellendi');
+  }
+
+  if (res.success || res.mesaj || res.id) {
+    row.querySelector('.kalem-toplam-display').textContent = '₺' + toplam.toFixed(2);
+    recalcBakimTotals();
+    const ie = STATE.isEmirleri.find(x => String(x.ID) === String(STATE.currentBakimDetayId));
+    if (ie) {
+      if (!ie.kalemler) ie.kalemler = [];
+      if (isNew) ie.kalemler.push({ ID: res.id, Aciklama: aciklama, Adet: adet, BirimFiyat: birimFiyat, KDV: kdv, Toplam: toplam });
+      else { const k = ie.kalemler.find(k => String(k.ID) === String(id)); if (k) { k.Aciklama=aciklama; k.Adet=adet; k.BirimFiyat=birimFiyat; k.KDV=kdv; k.Toplam=toplam; } }
+      ie.toplamTutar = ie.kalemler.reduce((s, k) => s + (parseFloat(k.Toplam) || 0), 0);
+    }
+  }
+}
+
+async function deleteKalem(btn) {
+  const row = btn.closest('.kalem-row');
+  const id = row.dataset.kalemId;
+  if (!String(id).startsWith('new-')) {
+    const res = await api('kalem_sil', { id });
+    if (!res.success) { toast('Silme hatası','error'); return; }
+    const ie = STATE.isEmirleri.find(x=>String(x.ID)===String(STATE.currentBakimDetayId));
+    if (ie && ie.kalemler) { ie.kalemler = ie.kalemler.filter(k=>String(k.ID)!==String(id)); ie.toplamTutar=ie.kalemler.reduce((s,k)=>s+(parseFloat(k.Toplam)||0),0); }
+  }
+  row.remove();
+  recalcBakimTotals();
+  toast('Kalem silindi');
+}
+
+function recalcBakimTotals() {
+  const rows = document.querySelectorAll('.kalem-row');
+  const kalemler = Array.from(rows).map(r => {
+    const adet  = parseFloat(r.querySelector('.kalem-adet')?.value) || 1;
+    const fiyat = parseFloat(r.querySelector('.kalem-fiyat')?.value) || 0;
+    const kdv   = parseFloat(r.querySelector('.kalem-kdv')?.value) || 0;
+    const toplam = adet * fiyat * (1 + kdv / 100);
+    return { Adet: adet, BirimFiyat: fiyat, KDV: kdv, Toplam: toplam };
+  });
+  calcBakimTotals(kalemler);
+}
+
+function calcBakimTotals(kalemler) {
+  const subtotal = kalemler.reduce((s,k) => s + (parseFloat(k.Adet)||1) * (parseFloat(k.BirimFiyat)||0), 0);
+  const total    = kalemler.reduce((s,k) => s + (parseFloat(k.Toplam)||0), 0);
+  const vat      = total - subtotal;
+
+  const s = document.getElementById('bd-subtotal');
+  const v = document.getElementById('bd-vat');
+  const t = document.getElementById('bd-total');
+  if(s) s.textContent = `₺${subtotal.toFixed(2)}`;
+  if(v) v.textContent = `₺${vat.toFixed(2)}`;
+  if(t) t.textContent = `₺${total.toFixed(2)}`;
+}
+
+async function updateDetayDurum() {
+  const newDurum = document.getElementById('detay-durum-sel').value;
+  const res = await api('isEmri_durumGuncelle', { id: STATE.currentBakimDetayId, durum: newDurum });
+  if (res.success) {
+    const ie = STATE.isEmirleri.find(x=>String(x.ID)===String(STATE.currentBakimDetayId));
+    if(ie) ie.Durum = newDurum;
+    toast('Durum güncellendi: ' + newDurum);
+  }
+}
+
+async function updateDetayCalisan() {
+  const calisan = document.getElementById('bd-calisan-sel').value;
+  if (!calisan) return;
+  const res = await api('isEmri_durumGuncelle', { id: STATE.currentBakimDetayId, durum: document.getElementById('detay-durum-sel').value, atananCalisan: calisan });
+  if(res.success) toast('Teknisyen güncellendi');
+}
+
+// ── Kalem açıklama autocomplete ─────────────────────────────────────────
+async function kalemAciklamaAutoComplete(input) {
+  const q = input.value.trim();
+  const wrap = input.parentElement;
+  let list = wrap.querySelector('.kalem-autocomplete-list');
+  
+  if (q.length < 2) {
+    if (list) list.classList.add('hidden');
+    return;
+  }
+
+  // Veri henüz yoksa yükle
+  if (STATE.yedekParca.length === 0) {
+    const r = await api('yedekParca_listele');
+    if (r.success) STATE.yedekParca = r.data || [];
+  }
+  if (STATE.urunDB.length === 0) {
+    const r = await api('urunDB_listele');
+    if (r.success) STATE.urunDB = r.data || [];
+  }
+
+  const ql = q.toLowerCase();
+
+  // Yedek parçalar + ürün DB'den eşleşenleri birleştir
+  const parcaOneri = STATE.yedekParca
+    .filter(p => (p.ParcaAdi||'').toLowerCase().includes(ql))
+    .slice(0, 5)
+    .map(p => ({ ad: p.ParcaAdi, alt: p.Kategori || 'Yedek Parça', ikon: 'build' }));
+
+  const urunOneri = STATE.urunDB
+    .filter(u => (u.UrunAdi||'').toLowerCase().includes(ql) || (u.Model||'').toLowerCase().includes(ql))
+    .slice(0, 4)
+    .map(u => ({ ad: u.UrunAdi, alt: (u.Marka||'') + (u.Model ? ' · ' + u.Model : ''), ikon: 'precision_manufacturing' }));
+
+  const oneri = [...parcaOneri, ...urunOneri].slice(0, 7);
+
+  if (!oneri.length) {
+    if (list) list.classList.add('hidden');
+    return;
+  }
+
+  // Listeyi oluştur veya güncelle
+  if (!list) {
+    list = document.createElement('div');
+    list.className = 'kalem-autocomplete-list autocomplete-list';
+    wrap.style.position = 'relative';
+    wrap.appendChild(list);
+  }
+
+  list.innerHTML = oneri.map(o => `
+    <div class="autocomplete-item" onmousedown="fillKalemAciklama(event, this)">
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary" style="font-size:14px">${o.ikon}</span>
+        <span class="font-semibold text-on-surface">${o.ad}</span>
+      </div>
+      ${o.alt ? `<span class="text-xs text-on-surface-variant ml-5">${o.alt}</span>` : ''}
+    </div>
+  `).join('');
+
+  list.classList.remove('hidden');
+}
+
+function fillKalemAciklama(e, el) {
+  e.preventDefault(); // blur'ı geciktir
+  const row = el.closest('.kalem-row') || el.closest('[data-kalem-id]') || el.closest('div[data-kalem-id]');
+  const wrap = el.closest('.kalem-autocomplete-list').parentElement;
+  const input = wrap.querySelector('.kalem-aciklama');
+  const adText = el.querySelector('.font-semibold').textContent.trim();
+  if (input) input.value = adText;
+  el.closest('.kalem-autocomplete-list').classList.add('hidden');
+  // Fiyat alanına geç
+  const fiyatInput = wrap.closest('.kalem-row') ? wrap.closest('.kalem-row').querySelector('.kalem-fiyat') : null;
+  if (fiyatInput) fiyatInput.focus();
+}
+
+async function saveNotlar() {
+  const notlar = document.getElementById('bd-notlar').value;
+  const ie = STATE.isEmirleri.find(x=>String(x.ID)===String(STATE.currentBakimDetayId));
+  const durum = ie ? ie.Durum : 'Is Emirleri';
+  await api('isEmri_durumGuncelle', { id: STATE.currentBakimDetayId, durum, notlar });
+  toast('Notlar kaydedildi');
+}
+
+// ╔══════════════════════════════════════════════════╗
+// ║  PDF EXPORT                                      ║
+// ╚══════════════════════════════════════════════════╝
+async function exportPDF(id) {
+  const res = await api('isEmri_getir', { id });
+  if (!res.success || !res.data) { toast('Veri yüklenemedi', 'error'); return; }
+  const ie = res.data;
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+
+  // Header
+  doc.setFillColor(0,51,88);
+  doc.rect(0, 0, 210, 35, 'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(20);
+  doc.setFont('helvetica','bold');
+  doc.text(STATE.firma || 'DynamoOps', 15, 18);
+  doc.setFontSize(10);
+  doc.setFont('helvetica','normal');
+  doc.text('Bakım Servis Kartı', 15, 27);
+  doc.text(`#${ie.ID}  |  ${ie.TeslimTarihi||''}`, 140, 22, {align:'right'});
+
+  // Müşteri Bilgileri
+  doc.setTextColor(0,51,88);
+  doc.setFontSize(12);
+  doc.setFont('helvetica','bold');
+  doc.text('MÜŞTERİ BİLGİLERİ', 15, 50);
+  doc.setFontSize(10);
+  doc.setFont('helvetica','normal');
+  doc.setTextColor(66,71,79);
+  doc.text(`Şirket: ${ie.SirketAdi}`, 15, 58);
+  doc.text(`Teslim Eden: ${ie.TeslimEden||'—'}`, 15, 65);
+  doc.text(`Telefon: ${ie.Telefon||'—'}`, 15, 72);
+  doc.text(`Teslim Tarihi: ${ie.TeslimTarihi||'—'}`, 110, 58);
+  doc.text(`Teknisyen: ${ie.AtananCalisan||'—'}`, 110, 65);
+  doc.text(`Durum: ${ie.Durum}`, 110, 72);
+
+  // Ürünler
+  doc.setTextColor(0,51,88);
+  doc.setFontSize(12);
+  doc.setFont('helvetica','bold');
+  doc.text('ÜRÜNLER / MAKİNELER', 15, 88);
+
+  let yPos = 95;
+  (ie.urunler||[]).forEach(u => {
+    doc.setFontSize(10);
+    doc.setFont('helvetica','bold');
+    doc.setTextColor(13,28,46);
+    doc.text(`• ${u.UrunAdi}  [${u.Kategori||'—'}]  S/N: ${u.Seri||'—'}`, 15, yPos);
+    if (u.IlkBulgular) {
+      doc.setFont('helvetica','normal');
+      doc.setTextColor(186,26,26);
+      doc.text(`  Arıza: ${u.IlkBulgular}`, 15, yPos+6);
+      yPos += 6;
+    }
+    yPos += 8;
+  });
+
+  // Yapılan İşlemler Tablosu — birim fiyatlar GİZLENİR
+  yPos += 5;
+  doc.setTextColor(0,51,88);
+  doc.setFontSize(12);
+  doc.setFont('helvetica','bold');
+  doc.text('YAPILAN İŞLEMLER', 15, yPos);
+  yPos += 5;
+
+  const kalemSatirlar = (ie.kalemler||[]).map((k,i) => [
+    `${i+1}`,
+    k.Aciklama||'',
+    `${k.Adet||1} adet`,
+    `%${k.KDV||0}`,
+  ]);
+
+  if (kalemSatirlar.length) {
+    doc.autoTable({
+      startY: yPos,
+      head: [['#', 'İşlem Açıklaması', 'Adet', 'KDV']],
+      body: kalemSatirlar,
+      theme: 'striped',
+      headStyles: { fillColor: [0,51,88], textColor:[255,255,255], fontSize:9 },
+      bodyStyles: { fontSize:9, textColor:[13,28,46] },
+      columnStyles: { 0:{cellWidth:12}, 2:{cellWidth:20,halign:'center'} },
+      margin: { left:15, right:15 },
+    });
+    yPos = doc.lastAutoTable.finalY + 10;
+  } else {
+    yPos += 10;
+  }
+
+  // Toplam tutar (sadece toplam gösterilir)
+  const toplam = (ie.kalemler||[]).reduce((s,k)=>s+(parseFloat(k.Toplam)||0),0);
+  doc.setFillColor(230,238,255);
+  doc.rect(120, yPos, 75, 18, 'F');
+  doc.setTextColor(0,51,88);
+  doc.setFontSize(13);
+  doc.setFont('helvetica','bold');
+  doc.text('TOPLAM TUTAR:', 123, yPos+8);
+  doc.text(`₺${toplam.toFixed(2)}`, 190, yPos+8, {align:'right'});
+
+  // Footer
+  doc.setFontSize(8);
+  doc.setTextColor(114,119,128);
+  doc.setFont('helvetica','normal');
+  doc.text(`Bu belge ${new Date().toLocaleDateString('tr-TR')} tarihinde oluşturulmuştur.  |  ${STATE.firma||'DynamoOps'}`, 105, 287, {align:'center'});
+
+  doc.save(`BakimKarti_${ie.ID}_${ie.SirketAdi.replace(/\s/g,'_')}.pdf`);
+  toast('PDF indiriliyor...', 'info');
+}
+
+// ╔══════════════════════════════════════════════════╗
+// ║  WHATSAPP                                        ║
+// ╚══════════════════════════════════════════════════╝
+function openWpModal(id) {
+  STATE.wpCurrentId = id;
+  const ie = STATE.isEmirleri.find(x=>String(x.ID)===String(id));
+  if (!ie) return;
+  document.getElementById('wp-message-preview').textContent = `${ie.SirketAdi} — #${ie.ID} iş emri PDF'i gönderilecek.`;
+  document.getElementById('wp-telefon').value = ie.Telefon || STATE.wp || '';
+  openModal('modal-whatsapp');
+}
+
+async function sendWhatsApp() {
+  const tel = document.getElementById('wp-telefon').value.replace(/\s/g,'');
+  if (!tel) { toast('Telefon numarası gerekli','error'); return; }
+
+  toast('PDF hazırlanıyor...', 'info', 2000);
+  // Önce PDF indir
+  await exportPDF(STATE.wpCurrentId);
+  // Kısa bekleme — PDF indirme tetiklendi
+  await new Promise(r => setTimeout(r, 800));
+
+  // WhatsApp deep link — özel şablondan mesaj oluştur
+  const ie = STATE.isEmirleri.find(x=>String(x.ID)===String(STATE.wpCurrentId));
+  const mesajSablon = STATE.wpMesaj || 'Merhaba {sirket}, #{id} numaralı bakım servis kartınız hazır.';
+  const mesajDolu = mesajSablon
+    .replace(/{sirket}/g, ie?.SirketAdi||'')
+    .replace(/{id}/g, STATE.wpCurrentId||'')
+    .replace(/{firma}/g, STATE.firma||'DynamoOps');
+  const msg = encodeURIComponent(mesajDolu);
+  const cleaned = tel.replace(/[^+\d]/g,'');
+  window.open(`https://wa.me/${cleaned}?text=${msg}`, '_blank');
+
+  closeModal('modal-whatsapp');
+  toast('WhatsApp açıldı', 'success');
+}
+
+// ╔══════════════════════════════════════════════════╗
+// ║  MÜŞTERİLER                                      ║
+// ╚══════════════════════════════════════════════════╝
+async function loadMusteriler() {
+  const res = await api('musteriler_listele');
+  if (!res.success) return;
+  STATE.musteriler = res.data || [];
+  renderMusteriler(STATE.musteriler);
+}
+
+function renderMusteriler(data) {
+  const container = document.getElementById('musteri-list');
+  if (!data.length) { container.innerHTML = `<div class="text-center py-8 text-on-surface-variant text-sm">Müşteri kaydı yok</div>`; return; }
+  container.innerHTML = data.map(m => `
+    <div class="bg-surface-container-lowest p-4 rounded-xl ghost-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:shadow-ambient transition-shadow group">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center font-headline font-black text-primary text-lg">
+          ${(m.SirketAdi||'?').charAt(0).toUpperCase()}
+        </div>
+        <div>
+          <h3 class="font-headline font-bold text-on-surface">${m.SirketAdi}</h3>
+          <p class="text-xs text-on-surface-variant mt-0.5">${m.TeslimEden||''} ${m.Telefon ? `· ${m.Telefon}` : ''}</p>
+          ${m.Email ? `<p class="text-xs text-on-surface-variant">${m.Email}</p>` : ''}
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="text-right">
+          <div class="text-xs text-on-surface-variant">Toplam İş</div>
+          <div class="font-bold text-primary">${m.ToplamIsEmri||0}</div>
+        </div>
+        <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onclick="editMusteri(${JSON.stringify(m).replace(/"/g,'&quot;')})" class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center hover:bg-surface-variant transition-colors">
+            <span class="material-symbols-outlined text-primary" style="font-size:16px">edit</span>
+          </button>
+          <button onclick="deleteMusteri(${m.ID})" class="w-8 h-8 rounded-lg hover:bg-error-container flex items-center justify-center transition-colors">
+            <span class="material-symbols-outlined text-error" style="font-size:16px">delete</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterMusteriler(q) {
+  const filtered = STATE.musteriler.filter(m =>
+    m.SirketAdi.toLowerCase().includes(q.toLowerCase()) ||
+    (m.TeslimEden||'').toLowerCase().includes(q.toLowerCase())
+  );
+  renderMusteriler(filtered);
+}
+
+function openMusteri() {
+  document.getElementById('modal-musteri-title').textContent = 'Yeni Müşteri';
+  document.getElementById('musteri-edit-id').value = '';
+  ['m-sirket','m-kisi','m-tel','m-email','m-adres'].forEach(id => document.getElementById(id).value = '');
+  openModal('modal-musteri');
+}
+
+function editMusteri(m) {
+  document.getElementById('modal-musteri-title').textContent = 'Müşteriyi Düzenle';
+  document.getElementById('musteri-edit-id').value = m.ID;
+  document.getElementById('m-sirket').value = m.SirketAdi||'';
+  document.getElementById('m-kisi').value = m.TeslimEden||'';
+  document.getElementById('m-tel').value = m.Telefon||'';
+  document.getElementById('m-email').value = m.Email||'';
+  document.getElementById('m-adres').value = m.Adres||'';
+  openModal('modal-musteri');
+}
+
+async function saveMusteri() {
+  const id = document.getElementById('musteri-edit-id').value;
+  const sirketAdi = document.getElementById('m-sirket').value.trim();
+  if (!sirketAdi) { toast('Şirket adı zorunlu','error'); return; }
+  const data = { sirketAdi, teslimEden: document.getElementById('m-kisi').value, telefon: document.getElementById('m-tel').value, email: document.getElementById('m-email').value, adres: document.getElementById('m-adres').value };
+  const payload = id 
+    ? { id, SirketAdi:data.sirketAdi, TeslimEden:data.teslimEden, Telefon:data.telefon, Email:data.email, Adres:data.adres }
+    : data;
+  const res = await api(id ? 'musteri_guncelle' : 'musteri_olustur', payload);
+  if (res.success || res.mesaj) { toast(id ? 'Müşteri güncellendi':'Müşteri eklendi', 'success'); closeModal('modal-musteri'); await loadMusteriler(); }
+  else toast('Hata: ' + (res.hata||JSON.stringify(res)), 'error');
+}
+
+async function deleteMusteri(id) {
+  if (!confirm('Müşteriyi silmek istiyor musunuz?')) return;
+  const res = await api('musteri_sil', { id });
+  if (res.success) { toast('Müşteri silindi'); await loadMusteriler(); }
+}
+
+// ╔══════════════════════════════════════════════════╗
+// ║  ÇALIŞANLAR                                      ║
+// ╚══════════════════════════════════════════════════╝
+async function loadCalisanlar() {
+  const res = await api('calisanlar_listele');
+  if (!res.success) return;
+  STATE.calisanlar = res.data || [];
+  renderCalisanlar(STATE.calisanlar);
+}
+
+function renderCalisanlar(data) {
+  document.getElementById('calisan-count').textContent = data.filter(c=>c.Durum==='Aktif').length + ' Aktif';
+  const container = document.getElementById('calisan-list');
+  if (!data.length) { container.innerHTML = `<div class="text-center py-8 text-on-surface-variant text-sm">Çalışan kaydı yok</div>`; return; }
+  container.innerHTML = data.map(c => `
+    <div class="flex items-center justify-between pb-4 border-b border-outline-variant/10 last:border-0 last:pb-0 group">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center font-bold font-headline text-primary">
+          ${(c.Ad||'?').charAt(0)}
+        </div>
+        <div>
+          <div class="font-headline font-semibold text-sm text-on-surface">${c.Ad} ${c.Soyad}</div>
+          <div class="text-xs text-on-surface-variant">${c.Unvan||''}</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full ${c.Durum==='Aktif'?'bg-tertiary-container':'bg-outline'}"></span>
+          <span class="text-xs font-medium ${c.Durum==='Aktif'?'text-tertiary':'text-outline'}">${c.Durum||'Aktif'}</span>
+        </div>
+        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onclick="editCalisan(${JSON.stringify(c).replace(/"/g,'&quot;')})" class="w-7 h-7 rounded-lg hover:bg-surface-container flex items-center justify-center transition-colors">
+            <span class="material-symbols-outlined text-primary" style="font-size:14px">edit</span>
+          </button>
+          <button onclick="deleteCalisan(${c.ID})" class="w-7 h-7 rounded-lg hover:bg-error-container flex items-center justify-center transition-colors">
+            <span class="material-symbols-outlined text-error" style="font-size:14px">delete</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openCalisan() {
+  document.getElementById('modal-calisan-title').textContent = 'Yeni Çalışan';
+  document.getElementById('calisan-edit-id').value = '';
+  ['c-ad','c-soyad','c-unvan','c-tel','c-email'].forEach(id => document.getElementById(id).value = '');
+  openModal('modal-calisan');
+}
+
+function editCalisan(c) {
+  document.getElementById('modal-calisan-title').textContent = 'Çalışanı Düzenle';
+  document.getElementById('calisan-edit-id').value = c.ID;
+  document.getElementById('c-ad').value = c.Ad||'';
+  document.getElementById('c-soyad').value = c.Soyad||'';
+  document.getElementById('c-unvan').value = c.Unvan||'';
+  document.getElementById('c-tel').value = c.Telefon||'';
+  document.getElementById('c-email').value = c.Email||'';
+  openModal('modal-calisan');
+}
+
+async function saveCalisan() {
+  const id = document.getElementById('calisan-edit-id').value;
+  const ad = document.getElementById('c-ad').value.trim();
+  const soyad = document.getElementById('c-soyad').value.trim();
+  if (!ad || !soyad) { toast('Ad ve soyad zorunlu','error'); return; }
+  const data = { ad, soyad, unvan: document.getElementById('c-unvan').value, telefon: document.getElementById('c-tel').value, email: document.getElementById('c-email').value };
+  const res = await api(id ? 'calisan_guncelle' : 'calisan_olustur', 
+    id ? { id, Ad:data.ad, Soyad:data.soyad, Unvan:data.unvan, Telefon:data.telefon, Email:data.email } : data);
+  if (res.success || res.mesaj) { toast(id?'Çalışan güncellendi':'Çalışan eklendi', 'success'); closeModal('modal-calisan'); await loadCalisanlar(); }
+  else toast('Hata: ' + (res.hata||JSON.stringify(res)), 'error');
+}
+
+async function deleteCalisan(id) {
+  if (!confirm('Çalışanı silmek istiyor musunuz?')) return;
+  const res = await api('calisan_sil', { id });
+  if (res.success) { toast('Çalışan silindi'); await loadCalisanlar(); }
+}
+
+// ╔══════════════════════════════════════════════════╗
+// ║  ÜRÜN VERİTABANI                                 ║
+// ╚══════════════════════════════════════════════════╝
+function switchUrunDbTab(tab) {
+  STATE.urunDbTab = tab;
+  document.getElementById('tab-urunler').className = tab==='urunler' ? 'px-4 py-2 rounded-lg text-sm font-semibold btn-primary text-white' : 'px-4 py-2 rounded-lg text-sm font-semibold bg-surface-container text-primary hover:bg-surface-container-high transition-colors';
+  document.getElementById('tab-parcalar').className = tab==='parcalar' ? 'px-4 py-2 rounded-lg text-sm font-semibold btn-primary text-white' : 'px-4 py-2 rounded-lg text-sm font-semibold bg-surface-container text-primary hover:bg-surface-container-high transition-colors';
+  loadUrunDB();
+}
+
+async function loadUrunDB() {
+  if (STATE.urunDbTab === 'urunler') {
+    renderUrunDBForm();
+    const res = await api('urunDB_listele');
+    if (res.success) { STATE.urunDB = res.data||[]; renderUrunDBTable(STATE.urunDB); }
+  } else {
+    renderYedekParcaForm();
+    const res = await api('yedekParca_listele');
+    if (res.success) { STATE.yedekParca = res.data||[]; renderYedekParcaTable(STATE.yedekParca); }
+  }
+}
+
+function renderUrunDBForm() {
+  document.getElementById('urundb-table-title').textContent = 'Kayıtlı Ürünler';
+  document.getElementById('urundb-form-container').innerHTML = `
+    <div class="flex items-center gap-3 mb-5 border-b border-surface-container pb-4">
+      <div class="p-2 bg-surface-container-high rounded-lg text-primary">
+        <span class="material-symbols-outlined ms-fill" style="font-size:20px">add_box</span>
+      </div>
+      <h3 class="font-headline font-bold text-on-surface text-base">Ürün Kaydet</h3>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Ürün Adı *</label>
+        <input type="text" id="udb-ad" class="f-input rounded-t-lg" placeholder="Ürün adı"/>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Kategori</label>
+          <select id="udb-kat" class="f-input f-select rounded-t-lg">
+            <option value="">Seçin</option>
+            ${STATE.kategoriler.map(k=>`<option>${k}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Marka</label>
+          <input type="text" id="udb-marka" class="f-input rounded-t-lg" placeholder="Siemens, ABB..."/>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Model No</label>
+        <input type="text" id="udb-model" class="f-input rounded-t-lg" placeholder="1LE1001-1DB22"/>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Açıklama</label>
+        <input type="text" id="udb-aciklama" class="f-input rounded-t-lg" placeholder="15kW, 400V, 1460 RPM..."/>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Varsayılan Bakım Protokolü</label>
+        <textarea id="udb-protokol" class="f-input rounded-t-lg resize-none" rows="3" placeholder="Standart kontrol adımları..."></textarea>
+      </div>
+      <button onclick="saveUrunDB()" class="w-full btn-primary text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined" style="font-size:18px">save</span> Veritabanına Kaydet
+      </button>
+    </div>
+  `;
+}
+
+async function saveUrunDB() {
+  const urunAdi = document.getElementById('udb-ad').value.trim();
+  if (!urunAdi) { toast('Ürün adı zorunlu','error'); return; }
+  const res = await api('urunDB_olustur', {
+    urunAdi, kategori: document.getElementById('udb-kat').value,
+    marka: document.getElementById('udb-marka').value,
+    model: document.getElementById('udb-model').value,
+    aciklama: document.getElementById('udb-aciklama').value,
+    varsayilanProtokol: document.getElementById('udb-protokol').value,
+  });
+  if (res.success) { toast('Ürün kaydedildi'); await loadUrunDB(); }
+}
+
+function renderUrunDBTable(data) {
+  document.getElementById('urundb-table-body').innerHTML = `
+    <table class="tbl w-full text-left">
+      <thead><tr>
+        <th>Ürün / Kategori</th><th>Marka</th><th>Specs</th><th class="text-right">İşlem</th>
+      </tr></thead>
+      <tbody>
+        ${data.map(u => `
+          <tr>
+            <td>
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+                  <span class="material-symbols-outlined" style="font-size:18px">precision_manufacturing</span>
+                </div>
+                <div>
+                  <div class="font-bold text-on-surface font-headline text-sm">${u.UrunAdi}</div>
+                  <div class="text-xs text-on-surface-variant">${u.Kategori||'—'}</div>
+                </div>
+              </div>
+            </td>
+            <td class="text-sm font-medium">${u.Marka||'—'} ${u.Model ? `<span class="text-xs text-on-surface-variant">${u.Model}</span>`:''}</td>
+            <td><span class="badge badge-progress text-xs">${u.Aciklama||'—'}</span></td>
+            <td class="text-right">
+              <button onclick="deleteUrunDB(${u.ID})" class="text-on-surface-variant hover:text-error transition-colors p-1">
+                <span class="material-symbols-outlined" style="font-size:18px">delete</span>
+              </button>
+            </td>
+          </tr>
+        `).join('')}
+        ${!data.length ? `<tr><td colspan="4" class="text-center py-8 text-on-surface-variant text-sm">Kayıtlı ürün yok</td></tr>` : ''}
+      </tbody>
+    </table>
+    <div class="p-4 border-t border-surface-container text-xs text-on-surface-variant">${data.length} kayıt</div>
+  `;
+}
+
+async function deleteUrunDB(id) {
+  if (!confirm('Silinsin mi?')) return;
+  const res = await api('urunDB_sil', { id });
+  if (res.success) { toast('Silindi'); await loadUrunDB(); }
+}
+
+function filterUrunDB(q) {
+  const data = STATE.urunDbTab==='urunler' ? STATE.urunDB : STATE.yedekParca;
+  const field = STATE.urunDbTab==='urunler' ? 'UrunAdi' : 'ParcaAdi';
+  const filtered = data.filter(u => (u[field]||'').toLowerCase().includes(q.toLowerCase()));
+  if (STATE.urunDbTab==='urunler') renderUrunDBTable(filtered);
+  else renderYedekParcaTable(filtered);
+}
+
+function renderYedekParcaForm() {
+  document.getElementById('urundb-table-title').textContent = 'Yedek Parça Listesi';
+  document.getElementById('urundb-form-container').innerHTML = `
+    <div class="flex items-center gap-3 mb-5 border-b border-surface-container pb-4">
+      <div class="p-2 bg-surface-container-high rounded-lg text-primary">
+        <span class="material-symbols-outlined ms-fill" style="font-size:20px">add_box</span>
+      </div>
+      <h3 class="font-headline font-bold text-on-surface text-base">Yedek Parça Ekle</h3>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Parça Adı *</label>
+        <input type="text" id="yp-ad" class="f-input rounded-t-lg" placeholder="SKF Rulman 6205"/>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Kategori</label>
+          <select id="yp-kat" class="f-input f-select rounded-t-lg">
+            <option value="">Seçin</option>
+            ${STATE.kategoriler.map(k=>`<option>${k}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Stok Kodu</label>
+          <input type="text" id="yp-stok" class="f-input rounded-t-lg" placeholder="6205-ZZ"/>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Açıklama</label>
+        <input type="text" id="yp-aciklama" class="f-input rounded-t-lg" placeholder="Motor ön rulmanı"/>
+      </div>
+      <button onclick="saveYedekParca()" class="w-full btn-primary text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined" style="font-size:18px">save</span> Parçayı Kaydet
+      </button>
+    </div>
+  `;
+}
+
+async function saveYedekParca() {
+  const parcaAdi = document.getElementById('yp-ad').value.trim();
+  if (!parcaAdi) { toast('Parça adı zorunlu','error'); return; }
+  const res = await api('yedekParca_olustur', { parcaAdi, kategori: document.getElementById('yp-kat').value, stokKodu: document.getElementById('yp-stok').value, aciklama: document.getElementById('yp-aciklama').value });
+  if (res.success) { toast('Parça kaydedildi'); await loadUrunDB(); }
+}
+
+function renderYedekParcaTable(data) {
+  document.getElementById('urundb-table-body').innerHTML = `
+    <table class="tbl w-full text-left">
+      <thead><tr>
+        <th>Parça Adı</th><th>Kategori</th><th>Stok Kodu</th><th>Açıklama</th><th class="text-right">İşlem</th>
+      </tr></thead>
+      <tbody>
+        ${data.map(p => `
+          <tr>
+            <td class="font-bold text-sm">${p.ParcaAdi}</td>
+            <td><span class="badge badge-progress">${p.Kategori||'—'}</span></td>
+            <td class="text-sm font-mono">${p.StokKodu||'—'}</td>
+            <td class="text-sm text-on-surface-variant">${p.Aciklama||'—'}</td>
+            <td class="text-right">
+              <button onclick="deleteYedekParca(${p.ID})" class="text-on-surface-variant hover:text-error transition-colors p-1">
+                <span class="material-symbols-outlined" style="font-size:18px">delete</span>
+              </button>
+            </td>
+          </tr>
+        `).join('')}
+        ${!data.length ? `<tr><td colspan="5" class="text-center py-8 text-on-surface-variant text-sm">Kayıtlı parça yok</td></tr>` : ''}
+      </tbody>
+    </table>
+    <div class="p-4 border-t border-surface-container text-xs text-on-surface-variant">${data.length} kayıt</div>
+  `;
+}
+
+async function deleteYedekParca(id) {
+  if (!confirm('Silinsin mi?')) return;
+  const res = await api('yedekParca_sil', { id });
+  if (res.success) { toast('Silindi'); await loadUrunDB(); }
+}
+
+// ╔══════════════════════════════════════════════════╗
+// ║  ANALİTİK                                        ║
+// ╚══════════════════════════════════════════════════╝
+async function loadAnalitik() {
+  const periData = getAnalitikPeriData();
+  const [ozetRes, revizeRes, calisanRes, kategoriRes] = await Promise.all([
+    api('analitik_ozet', periData),
+    api('analitik_revize', periData),
+    api('analitik_calisan', periData),
+    api('analitik_kategori', periData),
+  ]);
+
+  if (ozetRes.success) renderAnalitikOzet(ozetRes.data);
+  if (revizeRes.success) renderRevizeRanking(revizeRes.data);
+  if (kategoriRes.success) renderKategoriChart(kategoriRes.data);
+  if (calisanRes.success) renderCalisanPerf(calisanRes.data);
+}
+
+function getAnalitikPeriData() {
+  if (STATE.analitikBas && STATE.analitikBit) return { baslangic: STATE.analitikBas, bitis: STATE.analitikBit };
+  return { aralik: STATE.analitikPeriod };
+}
+
+function setAnalitikPeriod(p) {
+  STATE.analitikPeriod = p;
+  STATE.analitikBas = null; STATE.analitikBit = null;
+  ['haftalik','aylik','yillik'].forEach(x => {
+    const btn = document.getElementById('btn-' + x);
+    if(btn) btn.className = x===p ?
+      'px-3 py-1.5 text-sm font-label bg-surface-container-lowest rounded-lg text-primary font-semibold shadow-sm' :
+      'px-3 py-1.5 text-sm font-label text-on-surface-variant hover:text-primary rounded-lg transition-colors';
+  });
+  const labels = { haftalik:'Haftalık özet', aylik:'Aylık özet', yillik:'Yıllık özet' };
+  document.getElementById('analitik-subtitle').textContent = labels[p] || '';
+  loadAnalitik();
+}
+
+function setAnalitikCustom() {
+  const bas = document.getElementById('analitik-bas').value;
+  const bit = document.getElementById('analitik-bit').value;
+  if (!bas || !bit) { toast('Başlangıç ve bitiş tarihi seçin','error'); return; }
+  STATE.analitikBas = bas; STATE.analitikBit = bit;
+  document.getElementById('analitik-subtitle').textContent = `${bas} — ${bit}`;
+  loadAnalitik();
+}
+
+function renderAnalitikOzet(data) {
+  document.getElementById('a-toplam').textContent = data.toplam||0;
+  document.getElementById('a-yapildi').textContent = data.yapildi||0;
+  document.getElementById('a-revize').textContent = data.revize||0;
+  document.getElementById('a-ciro').textContent = `₺${(data.toplamCiro||0).toLocaleString('tr-TR',{minimumFractionDigits:2})}`;
+}
+
+function renderRevizeRanking(data) {
+  const container = document.getElementById('revize-ranking');
+  const liste = data.calisanRevize || [];
+  const max = Math.max(...liste.map(x=>x.sayi), 1);
+
+  if (!liste.length) { container.innerHTML = `<div class="text-center text-on-surface-variant text-sm py-4">Revize kaydı yok</div>`; return; }
+
+  container.innerHTML = liste.map((c, i) => `
+    <div>
+      <div class="flex justify-between items-end mb-1.5">
+        <span class="text-sm font-label font-semibold text-on-surface flex items-center gap-2">
+          ${i===0 ? '🔴' : i===1 ? '🟠' : '🟡'} ${c.ad}
+        </span>
+        <span class="text-sm font-headline font-bold ${i===0?'text-error':'text-secondary'}">${c.sayi}</span>
+      </div>
+      <div class="w-full h-2.5 bg-surface-variant rounded-full overflow-hidden">
+        <div class="h-full rounded-full ${i===0?'bg-error':i===1?'bg-secondary':'bg-outline'}" style="width:${(c.sayi/max*100).toFixed(0)}%;transition:width 0.7s ease"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderKategoriChart(data) {
+  const container = document.getElementById('kategori-chart');
+  const entries = Object.entries(data).sort((a,b) => b[1].toplam - a[1].toplam);
+  const maxVal = Math.max(...entries.map(([,v])=>v.toplam), 1);
+
+  if (!entries.length) { container.innerHTML = `<div class="text-center text-on-surface-variant text-sm">Veri yok</div>`; return; }
+
+  container.innerHTML = entries.map(([kat, vals]) => `
+    <div>
+      <div class="flex justify-between items-center mb-1">
+        <span class="text-sm font-label font-semibold text-on-surface">${kat}</span>
+        <div class="flex items-center gap-3 text-xs">
+          <span class="text-on-surface-variant">${vals.toplam} bakım</span>
+          ${vals.revize > 0 ? `<span class="badge badge-revize">${vals.revize} revize</span>` : ''}
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="flex-1 h-4 bg-surface-variant rounded-full overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-primary to-primary-container rounded-full" style="width:${(vals.toplam/maxVal*100).toFixed(0)}%;transition:width 0.7s ease"></div>
+        </div>
+        ${vals.revize > 0 ? `
+          <div class="h-4 bg-error rounded-full" style="width:${(vals.revize/maxVal*100*0.3).toFixed(0)}px;min-width:4px;transition:width 0.7s ease"></div>
+        ` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderCalisanPerf(data) {
+  const container = document.getElementById('calisan-perf-table');
+  const entries = Object.entries(data).sort((a,b) => b[1].toplam - a[1].toplam);
+
+  if (!entries.length) { container.innerHTML = `<div class="text-center text-on-surface-variant text-sm py-4">Veri yok</div>`; return; }
+
+  container.innerHTML = `
+    <table class="tbl w-full">
+      <thead><tr>
+        <th>Çalışan</th><th>Toplam</th><th>Tamamlanan</th><th>Revize</th><th>Revize Oranı</th><th>En Çok Kategori</th>
+      </tr></thead>
+      <tbody>
+        ${entries.map(([ad, s]) => {
+          const revizeOran = s.toplam > 0 ? ((s.revize/s.toplam)*100).toFixed(1) : '0.0';
+          const enCokKat = Object.entries(s.kategoriler||{}).sort((a,b)=>b[1]-a[1])[0];
+          const revizeRenk = parseFloat(revizeOran) > 15 ? 'text-error font-bold' : parseFloat(revizeOran) > 10 ? 'text-secondary font-medium' : 'text-on-surface';
+          return `
+            <tr>
+              <td>
+                <div class="flex items-center gap-2">
+                  <div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center font-bold font-headline text-primary text-sm">${ad.charAt(0)}</div>
+                  <span class="font-semibold text-sm">${ad}</span>
+                </div>
+              </td>
+              <td class="font-bold">${s.toplam}</td>
+              <td class="text-primary font-semibold">${s.yapildi}</td>
+              <td class="${s.revize > 0 ? 'text-error font-bold' : 'text-on-surface-variant'}">${s.revize}</td>
+              <td><span class="${revizeRenk}">%${revizeOran}</span></td>
+              <td><span class="badge badge-progress">${enCokKat ? `${enCokKat[0]} (${enCokKat[1]})` : '—'}</span></td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function exportAnalitikCSV() {
+  const rows = [['Çalışan','Toplam','Tamamlanan','Revize','Revize%']];
+  document.querySelectorAll('#calisan-perf-table tr:not(:first-child)').forEach(tr => {
+    const cells = Array.from(tr.querySelectorAll('td')).map(td => `"${td.textContent.trim()}"`);
+    if (cells.length) rows.push(cells);
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'analitik_rapor.csv';
+  link.click();
+  toast('CSV indiriliyor', 'info');
+}
+
+// ╔══════════════════════════════════════════════════╗
+// ║  AYARLAR                                         ║
+// ╚══════════════════════════════════════════════════╝
+function loadAyarlar() {
+  const el = document.getElementById('settings-api-url');
+  if (el) el.value = STATE.apiUrl;
+  const firma = document.getElementById('settings-firma');
+  if (firma) firma.value = STATE.firma;
+  const wp = document.getElementById('settings-wp');
+  if (wp) wp.value = STATE.wp;
+  const wpMesaj = document.getElementById('settings-wp-mesaj');
+  if (wpMesaj) wpMesaj.value = STATE.wpMesaj;
+  // Logo önizleme
+  if (STATE.logo) {
+    const prev = document.getElementById('logo-preview');
+    const icon = document.getElementById('logo-preview-icon');
+    if (prev) { prev.src = STATE.logo; prev.classList.remove('hidden'); }
+    if (icon) icon.classList.add('hidden');
+  }
+  renderKategoriListesi();
+}
+
+function execToEchoUrl(url) {
+  // exec URL'sini echo URL'sine çevir
+  // https://script.google.com/macros/s/SCRIPT_ID/exec
+  // → https://script.google.com/macros/s/SCRIPT_ID/exec (aynı kalır — JSONP exec'te de çalışır)
+  // Ama script tag redirect takip etmiyor, bu yüzden
+  // exec URL'sinden script ID'yi alıp echo URL'si oluştur
+  const match = url.match(/\/macros\/s\/([^/]+)\/exec/);
+  if (match) {
+    // JSONP için exec URL'sini kullan — GAS exec JSONP'yi destekler
+    // Script tag redirect'i takip eder (fetch'ten farklı)
+    return url; // exec URL'si olduğu gibi kalsın
+  }
+  return url;
+}
+
+function saveApiUrl(fromSettings) {
+  const val = fromSettings
+    ? document.getElementById('settings-api-url').value.trim()
+    : document.getElementById('api-url-input')?.value.trim();
+  if (!val) { toast('URL boş olamaz','error'); return; }
+  // exec URL'sini sakla, JSONP script tag redirect'i takip eder
+  STATE.apiUrl = val.replace(/\/$/, ''); // trailing slash kaldır
+  localStorage.setItem('dynamoops_api_url', STATE.apiUrl);
+  document.getElementById('config-banner').classList.remove('show');
+  toast('API URL kaydedildi! Bağlantı test ediliyor...', 'info');
+  testApiConnection();
+}
+
+async function testApiConnection() {
+  const res = await api('isEmirleri_listele');
+  const el = document.getElementById('api-test-result');
+  if (res.success) {
+    if(el) el.innerHTML = '<div class="flex items-center gap-2 text-sm font-medium" style="color:#003358"><span class="material-symbols-outlined" style="font-size:18px">check_circle</span> Bağlantı başarılı! ' + (res.data||[]).length + ' iş emri bulundu.</div>';
+    toast('Bağlantı başarılı!', 'success');
+  } else {
+    if(el) el.innerHTML = '<div class="flex items-center gap-2 text-sm font-medium text-error"><span class="material-symbols-outlined" style="font-size:18px">error</span> Bağlantı hatası: ' + (res.hata||'Bilinmeyen hata') + '</div>';
+    toast('Bağlantı başarısız', 'error');
+  }
+}
+
+async function runKurulum() {
+  const res = await api('kurulum');
+  if (res.success) toast('Kurulum tamamlandı: ' + (res.mesaj||''), 'success');
+  else toast('Kurulum hatası', 'error');
+}
+
+function previewLogo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl = e.target.result;
+    document.getElementById('logo-preview').src = dataUrl;
+    document.getElementById('logo-preview').classList.remove('hidden');
+    document.getElementById('logo-preview-icon').classList.add('hidden');
+    STATE.logo = dataUrl;
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveFirmaSettings() {
+  STATE.firma = document.getElementById('settings-firma').value || 'DynamoOps';
+  STATE.wp = document.getElementById('settings-wp').value || '';
+  localStorage.setItem('dynamoops_firma', STATE.firma);
+  localStorage.setItem('dynamoops_wp', STATE.wp);
+  if (STATE.logo) localStorage.setItem('dynamoops_logo', STATE.logo);
+  applyFirmaUI();
+  toast('İşletme bilgileri kaydedildi', 'success');
+}
+
+function saveWpMesaj() {
+  STATE.wpMesaj = document.getElementById('settings-wp-mesaj').value || STATE.wpMesaj;
+  localStorage.setItem('dynamoops_wp_mesaj', STATE.wpMesaj);
+  toast('WhatsApp mesajı kaydedildi', 'success');
+}
+
+function addKategori() {
+  const input = document.getElementById('yeni-kategori-input');
+  const val = input.value.trim();
+  if (!val) return;
+  if (STATE.kategoriler.includes(val)) { toast('Bu kategori zaten var', 'error'); return; }
+  STATE.kategoriler.push(val);
+  localStorage.setItem('dynamoops_kategoriler', JSON.stringify(STATE.kategoriler));
+  input.value = '';
+  renderKategoriListesi();
+  toast('Kategori eklendi', 'success');
+}
+
+function deleteKategori(kat) {
+  STATE.kategoriler = STATE.kategoriler.filter(k => k !== kat);
+  localStorage.setItem('dynamoops_kategoriler', JSON.stringify(STATE.kategoriler));
+  renderKategoriListesi();
+  toast('Kategori silindi');
+}
+
+function renderKategoriListesi() {
+  const el = document.getElementById('kategori-listesi');
+  if (!el) return;
+  el.innerHTML = STATE.kategoriler.map(k => `
+    <span class="inline-flex items-center gap-1.5 bg-surface-container px-3 py-1.5 rounded-full text-sm font-medium text-on-surface">
+      ${k}
+      <button onclick="deleteKategori('${k.replace(/'/g,"\\'")}')" class="text-outline hover:text-error transition-colors ml-1">
+        <span class="material-symbols-outlined" style="font-size:14px">close</span>
+      </button>
+    </span>
+  `).join('');
+}
+
+function applyFirmaUI() {
+  // Sidebar
+  const firmaAdi = STATE.firma || 'DynamoOps';
+  ['sidebar-firma-adi','mobile-firma-adi','mobile-nav-firma-adi'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = firmaAdi;
+  });
+  // Logo
+  if (STATE.logo) {
+    const img = document.getElementById('sidebar-logo-img');
+    const icon = document.getElementById('sidebar-logo-icon');
+    if (img) { img.src = STATE.logo; img.classList.remove('hidden'); }
+    if (icon) icon.classList.add('hidden');
+  }
+  // Sayfa başlığı
+  document.title = firmaAdi + ' — Bakım Takip';
+}
+
+// ╔══════════════════════════════════════════════════╗
+// ║  UTILS                                           ║
+// ╚══════════════════════════════════════════════════╝
+function escHtml(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ╔══════════════════════════════════════════════════╗
+// ║  BOOT                                            ║
+// ╚══════════════════════════════════════════════════╝
+(async function boot() {
+  // Firma UI'ını hemen uygula (logo, ad)
+  applyFirmaUI();
+
+  // API URL yoksa banner göster
+  if (!STATE.apiUrl) {
+    document.getElementById('config-banner').classList.add('show');
+  }
+
+  // İlk ekranı yükle
+  await loadDashboard();
+
+  // Demo mode bildirimi
+  if (!STATE.apiUrl) {
+    setTimeout(() => toast('Demo modunda çalışıyor. Ayarlar > API URL girerek Google Sheets\'e bağlanın.', 'info', 6000), 1200);
+  }
+})();
+</script>
+</body>
+</html>
