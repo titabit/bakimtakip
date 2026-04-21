@@ -992,47 +992,25 @@ async function api(action, data = {}) {
   if (!STATE.apiUrl) {
     return demoHandler(action, data);
   }
-  // JSONP — CORS sorunu yok, script tag exec redirect'ini takip eder
-  return new Promise((resolve) => {
-    const cbName = 'gasCallback_' + Date.now();
+  try {
     const url = STATE.apiUrl.trim()
       + '?action=' + encodeURIComponent(action)
-      + '&data=' + encodeURIComponent(JSON.stringify(data))
-      + '&callback=' + cbName;
+      + '&data=' + encodeURIComponent(JSON.stringify(data));
 
-    let done = false;
-
-    window[cbName] = function(result) {
-      if (done) return;
-      done = true;
-      delete window[cbName];
-      if (script.parentNode) script.parentNode.removeChild(script);
-      clearTimeout(timer);
-      resolve(result);
-    };
-
-    const script = document.createElement('script');
-    script.src = url;
-
-    script.onerror = function() {
-      if (done) return;
-      done = true;
-      delete window[cbName];
-      if (script.parentNode) script.parentNode.removeChild(script);
-      clearTimeout(timer);
-      resolve({ success: false, hata: 'Bağlantı hatası' });
-    };
-
-    const timer = setTimeout(function() {
-      if (done) return;
-      done = true;
-      delete window[cbName];
-      if (script.parentNode) script.parentNode.removeChild(script);
-      resolve({ success: false, hata: 'Zaman aşımı' });
-    }, 25000);
-
-    document.head.appendChild(script);
-  });
+    const res = await fetch(url, { redirect: 'follow' });
+    const text = await res.text();
+    if (!text) return { success: false, hata: 'Boş yanıt' };
+    
+    // HtmlService JSON'u HTML body içinde döndürür — çıkar
+    const match = text.match(/>\s*(\{[\s\S]*\})\s*</);
+    const json = match ? match[1] : text.trim();
+    
+    try { return JSON.parse(json); }
+    catch(e) { return { success: false, hata: 'Parse hatası: ' + text.slice(0,150) }; }
+  } catch(e) {
+    toast('Bağlantı hatası: ' + e.message, 'error');
+    return { success: false, hata: e.message };
+  }
 }
 
 // ─── Demo data (API yokken gösterim için) ─────────
