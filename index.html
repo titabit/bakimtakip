@@ -969,7 +969,7 @@ const STATE = {
   gasExecUrl: '',
   wpMesaj: localStorage.getItem('dynamoops_wp_mesaj') || 'Merhaba {sirket}, #{id} numaralı bakım servis kartınız hazır. PDF dosyasını inceleyebilirsiniz.',
   logo: localStorage.getItem('dynamoops_logo') || '',
-  kategoriler: JSON.parse(localStorage.getItem('dynamoops_kategoriler') || '["Motor","Redüktör","Pompa","Kompresör","Şalter / Pano","Diğer"]'),
+  kategoriler: [],
   isEmirleri: [],
   musteriler: [],
   calisanlar: [],
@@ -2877,7 +2877,7 @@ function exportAnalitikCSV() {
 // ╔══════════════════════════════════════════════════╗
 // ║  AYARLAR                                         ║
 // ╚══════════════════════════════════════════════════╝
-function loadAyarlar() {
+async function loadAyarlar() {
   const el = document.getElementById('settings-api-url');
   if (el) el.value = STATE.apiUrl;
   const firma = document.getElementById('settings-firma');
@@ -2886,14 +2886,22 @@ function loadAyarlar() {
   if (wp) wp.value = STATE.wp;
   const wpMesaj = document.getElementById('settings-wp-mesaj');
   if (wpMesaj) wpMesaj.value = STATE.wpMesaj;
-  // Logo önizleme
   if (STATE.logo) {
     const prev = document.getElementById('logo-preview');
     const icon = document.getElementById('logo-preview-icon');
     if (prev) { prev.src = STATE.logo; prev.classList.remove('hidden'); }
     if (icon) icon.classList.add('hidden');
   }
+  // Kategorileri DB'den yükle
+  await loadKategoriler();
   renderKategoriListesi();
+}
+
+async function loadKategoriler() {
+  const res = await api('kategoriler_listele');
+  if (res.success && res.data) {
+    STATE.kategoriler = res.data;
+  }
 }
 
 function execToEchoUrl(url) {
@@ -2972,23 +2980,31 @@ function saveWpMesaj() {
   toast('WhatsApp mesajı kaydedildi', 'success');
 }
 
-function addKategori() {
+async function addKategori() {
   const input = document.getElementById('yeni-kategori-input');
   const val = input.value.trim();
   if (!val) return;
   if (STATE.kategoriler.includes(val)) { toast('Bu kategori zaten var', 'error'); return; }
-  STATE.kategoriler.push(val);
-  localStorage.setItem('dynamoops_kategoriler', JSON.stringify(STATE.kategoriler));
-  input.value = '';
-  renderKategoriListesi();
-  toast('Kategori eklendi', 'success');
+  const res = await api('kategori_ekle', { ad: val });
+  if (res.success) {
+    STATE.kategoriler.push(val);
+    input.value = '';
+    renderKategoriListesi();
+    toast('Kategori eklendi', 'success');
+  } else {
+    toast(res.hata || 'Hata', 'error');
+  }
 }
 
-function deleteKategori(kat) {
-  STATE.kategoriler = STATE.kategoriler.filter(k => k !== kat);
-  localStorage.setItem('dynamoops_kategoriler', JSON.stringify(STATE.kategoriler));
-  renderKategoriListesi();
-  toast('Kategori silindi');
+async function deleteKategori(kat) {
+  const res = await api('kategori_sil', { ad: kat });
+  if (res.success) {
+    STATE.kategoriler = STATE.kategoriler.filter(k => k !== kat);
+    renderKategoriListesi();
+    toast('Kategori silindi');
+  } else {
+    toast('Silme hatası', 'error');
+  }
 }
 
 function renderKategoriListesi() {
@@ -3041,6 +3057,8 @@ function escHtml(str) {
     document.getElementById('config-banner').classList.add('show');
   }
 
+  // Kategorileri yükle
+  await loadKategoriler();
   // İlk ekranı yükle
   await loadDashboard();
 
