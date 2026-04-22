@@ -616,8 +616,16 @@ tailwind.config = {
       <div class="text-3xl font-headline font-black text-error" id="a-revize"><span class="skeleton inline-block w-12 h-8 rounded-lg">&nbsp;</span></div>
     </div>
     <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-ambient ghost-border">
-      <div class="text-xs font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Toplam Ciro</div>
-      <div class="text-2xl font-headline font-black text-secondary" id="a-ciro"><span class="skeleton inline-block w-20 h-8 rounded-lg">&nbsp;</span></div>
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-xs font-label font-semibold text-on-surface-variant uppercase tracking-wider">Toplam Ciro</div>
+        <button onclick="toggleCiro()" id="ciro-toggle-btn" class="text-on-surface-variant hover:text-primary transition-colors p-1 rounded-lg hover:bg-surface-container" title="Göster/Gizle">
+          <span class="material-symbols-outlined" id="ciro-toggle-icon" style="font-size:18px">visibility_off</span>
+        </button>
+      </div>
+      <div class="text-2xl font-headline font-black text-secondary" id="a-ciro">
+        <span id="ciro-hidden" class="tracking-widest text-on-surface-variant text-xl">••••••</span>
+        <span id="ciro-visible" class="hidden"><span class="skeleton inline-block w-20 h-8 rounded-lg">&nbsp;</span></span>
+      </div>
     </div>
   </div>
 
@@ -967,6 +975,8 @@ const STATE = {
   firma: localStorage.getItem('dynamoops_firma') || 'DynamoOps',
   wp: localStorage.getItem('dynamoops_wp') || '',
   gasExecUrl: '',
+  ciroValue: '',
+  ciroGoster: false,
   wpMesaj: localStorage.getItem('dynamoops_wp_mesaj') || 'Merhaba {sirket}, #{id} numaralı bakım servis kartınız hazır. PDF dosyasını inceleyebilirsiniz.',
   logo: localStorage.getItem('dynamoops_logo') || '',
   kategoriler: [],
@@ -2829,7 +2839,10 @@ function renderAnalitikOzet(data) {
   document.getElementById('a-toplam').textContent = data.toplam||0;
   document.getElementById('a-yapildi').textContent = data.yapildi||0;
   document.getElementById('a-revize').textContent = data.revize||0;
-  document.getElementById('a-ciro').textContent = `₺${(data.toplamCiro||0).toLocaleString('tr-TR',{minimumFractionDigits:2})}`;
+  // Ciro değerini STATE'e kaydet, görünürlük toggle'a göre güncelle
+  STATE.ciroValue = '₺' + (data.toplamCiro||0).toLocaleString('tr-TR',{minimumFractionDigits:2});
+  const ciroVisible = document.getElementById('ciro-visible');
+  if (ciroVisible) ciroVisible.textContent = STATE.ciroValue;
 }
 
 function renderRevizeRanking(data) {
@@ -3078,6 +3091,22 @@ function renderKategoriListesi() {
       </button>
     </span>
   `).join('');
+}
+
+function toggleCiro() {
+  STATE.ciroGoster = !STATE.ciroGoster;
+  const hidden = document.getElementById('ciro-hidden');
+  const visible = document.getElementById('ciro-visible');
+  const icon = document.getElementById('ciro-toggle-icon');
+  if (STATE.ciroGoster) {
+    if (hidden) hidden.classList.add('hidden');
+    if (visible) { visible.classList.remove('hidden'); visible.textContent = STATE.ciroValue || '₺0,00'; }
+    if (icon) icon.textContent = 'visibility';
+  } else {
+    if (hidden) hidden.classList.remove('hidden');
+    if (visible) visible.classList.add('hidden');
+    if (icon) icon.textContent = 'visibility_off';
+  }
 }
 
 function applyFirmaUI() {
