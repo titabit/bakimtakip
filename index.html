@@ -1612,16 +1612,27 @@ function removeUrunRow(btn) {
 function previewGorsel(input) {
   const file = input.files[0];
   if (!file) return;
+  // Dosya boyutunu kontrol et (max 500KB)
+  if (file.size > 500 * 1024) {
+    toast('Görsel max 500KB olmalı', 'error');
+    input.value = '';
+    return;
+  }
   const preview = input.closest('label').querySelector('.img-preview');
   const icon = input.closest('label').querySelector('span.material-symbols-outlined');
   const txt = input.closest('label').querySelector('span.text-xs');
   const reader = new FileReader();
   reader.onload = e => {
-    preview.style.backgroundImage = `url(${e.target.result})`;
-    preview.style.backgroundSize = 'cover';
-    preview.style.backgroundPosition = 'center';
-    preview.classList.remove('hidden');
-    preview.classList.add('absolute','inset-0');
+    const base64 = e.target.result;
+    // base64'ü data attribute'a kaydet — submitIsEmri okuyacak
+    input.dataset.base64 = base64;
+    if (preview) {
+      preview.style.backgroundImage = 'url(' + base64 + ')';
+      preview.style.backgroundSize = 'cover';
+      preview.style.backgroundPosition = 'center';
+      preview.classList.remove('hidden');
+      preview.classList.add('absolute','inset-0');
+    }
     if(icon) icon.classList.add('hidden');
     if(txt) txt.classList.add('hidden');
   };
@@ -1703,12 +1714,19 @@ async function submitIsEmri() {
   for (const row of urunRows) {
     const urunAdi = row.querySelector('.urun-adi').value.trim();
     if (!urunAdi) continue;
+    // Görselleri topla
+    const g1 = row.querySelector('.urun-gorsel-1');
+    const g2 = row.querySelector('.urun-gorsel-2');
+    const g3 = row.querySelector('.urun-gorsel-3');
     urunler.push({
       urunAdi,
       kategori: row.querySelector('.urun-kategori').value,
       seri: row.querySelector('.urun-seri').value,
       ilkBulgular: row.querySelector('.urun-bulgular').value,
       aciklama: row.querySelector('.urun-aciklama').value,
+      gorsel1: (g1 && g1.dataset.base64) || '',
+      gorsel2: (g2 && g2.dataset.base64) || '',
+      gorsel3: (g3 && g3.dataset.base64) || '',
     });
   }
 
@@ -2370,6 +2388,42 @@ async function exportPDF(id) {
   doc.setFont('helvetica', 'normal');
   var bugun = new Date().toLocaleDateString('tr-TR');
   doc.text('Bu belge ' + bugun + ' tarihinde olusturulmustur.  |  ' + firma, W/2, 290, { align: 'center' });
+
+  // ── GÖRSELLER ──────────────────────────────────────
+  var tumGorseller = [];
+  (ie.urunler||[]).forEach(function(u) {
+    if (u.Gorsel1) tumGorseller.push({ base64: u.Gorsel1, tip: 'once' });
+    if (u.Gorsel2) tumGorseller.push({ base64: u.Gorsel2, tip: 'once' });
+    if (u.Gorsel3) tumGorseller.push({ base64: u.Gorsel3, tip: 'once' });
+  });
+
+  if (tumGorseller.length > 0) {
+    y += 8;
+    // Yeni sayfa gerekebilir
+    if (y > 220) { doc.addPage(); y = 20; }
+    doc.setTextColor(0, 51, 88);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('GORSELLER', L, y);
+    doc.line(L, y+2, R, y+2);
+    y += 8;
+
+    var imgW = 55, imgH = 42, gap = 5;
+    var col = 0;
+    tumGorseller.forEach(function(g) {
+      if (y + imgH > 270) { doc.addPage(); y = 20; col = 0; }
+      var x = L + col * (imgW + gap);
+      try {
+        // base64 formatını belirle
+        var fmt = 'JPEG';
+        if (g.base64.indexOf('image/png') > -1) fmt = 'PNG';
+        doc.addImage(g.base64, fmt, x, y, imgW, imgH);
+      } catch(e) {}
+      col++;
+      if (col >= 3) { col = 0; y += imgH + gap; }
+    });
+    if (col > 0) y += imgH + gap;
+  }
 
   var dosyaAdi = 'BakimKarti_' + ie.ID + '_' + tc(ie.SirketAdi).replace(/\s/g,'_') + '.pdf';
   doc.save(dosyaAdi);
