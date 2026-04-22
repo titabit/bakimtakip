@@ -963,7 +963,7 @@ tailwind.config = {
 // ║  STATE                                           ║
 // ╚══════════════════════════════════════════════════╝
 const STATE = {
-  apiUrl: localStorage.getItem('dynamoops_api_url') || '',
+  apiUrl: localStorage.getItem('dynamoops_api_url') || 'proxy',
   firma: localStorage.getItem('dynamoops_firma') || 'DynamoOps',
   wp: localStorage.getItem('dynamoops_wp') || '',
   gasExecUrl: '',
@@ -989,47 +989,42 @@ const STATE = {
 // ║  API                                             ║
 // ╚══════════════════════════════════════════════════╝
 async function api(action, data = {}) {
-  if (!STATE.apiUrl) {
+  if (!STATE.apiUrl || STATE.apiUrl === 'proxy') {
     return demoHandler(action, data);
   }
-  // no-cors ile istek at — yanıt okunamaz ama yazma işlemleri GAS'a ulaşır
-  // Okuma için ayrı bir yöntem kullanılır
-  const url = STATE.apiUrl.trim()
-    + '?action=' + encodeURIComponent(action)
-    + '&data=' + encodeURIComponent(JSON.stringify(data));
-  
-  return new Promise((resolve) => {
-    // JSONP ile çağır — script tag CORS'tan etkilenmez
-    const cb = 'gc' + Date.now();
-    const s = document.createElement('script');
-    let done = false;
-    
-    window[cb] = function(r) {
-      done = true;
-      delete window[cb];
-      document.head.removeChild(s);
-      resolve(r);
-    };
-    
-    s.onerror = function() {
-      if (done) return;
-      done = true;
-      delete window[cb];
-      if (s.parentNode) document.head.removeChild(s);
-      resolve({ success: false, hata: 'Bağlantı hatası' });
-    };
-    
-    setTimeout(function() {
-      if (done) return;
-      done = true;
-      delete window[cb];
-      if (s.parentNode) document.head.removeChild(s);
-      resolve({ success: false, hata: 'Zaman aşımı' });
-    }, 20000);
-    
-    s.src = url + '&callback=' + cb;
-    document.head.appendChild(s);
-  });
+
+  const isNetlify = window.location.hostname.includes('netlify.app');
+
+  // Netlify: proxy kullan
+  if (isNetlify) {
+    try {
+      const url = '/api/proxy'
+        + '?action=' + encodeURIComponent(action)
+        + '&data=' + encodeURIComponent(JSON.stringify(data));
+      const res = await fetch(url);
+      const text = await res.text();
+      if (!text) return { success: false, hata: 'Boş yanıt' };
+      try { return JSON.parse(text); }
+      catch(e) { return { success: false, hata: 'Parse hatası: ' + text.slice(0,100) }; }
+    } catch(e) {
+      toast('Bağlantı hatası: ' + e.message, 'error');
+      return { success: false, hata: e.message };
+    }
+  }
+
+  // Local: fetch ile direkt al — echo URL JSON döndürür, CORS header var
+  try {
+    const execUrl = STATE.apiUrl.trim();
+    const url = execUrl + '?action=' + encodeURIComponent(action) + '&data=' + encodeURIComponent(JSON.stringify(data));
+    const res = await fetch(url, { redirect: 'follow' });
+    const text = await res.text();
+    if (!text) return { success: false, hata: 'Boş yanıt' };
+    try { return JSON.parse(text); }
+    catch(e) { return { success: false, hata: 'Parse hatası: ' + text.slice(0,100) }; }
+  } catch(e) {
+    // CORS hatası — tarayıcıda exec URL'yi bir kez aç ve tekrar dene
+    return { success: false, hata: e.message };
+  }
 }
 
 // ─── Demo data (API yokken gösterim için) ─────────
@@ -1510,6 +1505,10 @@ async function confirmDelete(id) {
 let urunRowCount = 0;
 
 async function initIsEmriForm() {
+  // Formu tamamen temizle
+  document.getElementById('ie-sirket').value = '';
+  document.getElementById('ie-teslimeden').value = '';
+  document.getElementById('ie-telefon').value = '';
   // Tarihi bugün yap
   const tarihEl = document.getElementById('ie-tarih');
   if (tarihEl) tarihEl.value = new Date().toISOString().slice(0,10);
@@ -1712,7 +1711,7 @@ async function submitIsEmri() {
   const res = await api('isEmri_olustur', {
     sirketAdi: sirket,
     teslimEden,
-    telefon: document.getElementById('ie-telefon').value,
+    telefon: document.getElementById('ie-telefon').value.trim(),
     teslimTarihi: tarih,
     atananCalisan: document.getElementById('ie-calisan').value,
     urunler,
@@ -2201,109 +2200,171 @@ async function saveNotlar() {
 // ╚══════════════════════════════════════════════════╝
 async function exportPDF(id) {
   const res = await api('isEmri_getir', { id });
-  if (!res.success || !res.data) { toast('Veri yüklenemedi', 'error'); return; }
+  if (!res.success || !res.data) { toast('Veri yuklenemedi', 'error'); return; }
   const ie = res.data;
+
+  // Tarih formatla
+  function formatTarih(t) {
+    if (!t) return '-';
+    try {
+      const d = new Date(t);
+      return d.toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit', year:'numeric' });
+    } catch(e) { return String(t); }
+  }
+
+  // Tum metinleri temizle — Turkce karakter ve ozel sembol yok
+  function tc(str) {
+    if (str === null || str === undefined) return '-';
+    var s = String(str);
+    s = s.replace(/ğ/g,'g').replace(/Ğ/g,'G');
+    s = s.replace(/ü/g,'u').replace(/Ü/g,'U');
+    s = s.replace(/ş/g,'s').replace(/Ş/g,'S');
+    s = s.replace(/ı/g,'i').replace(/İ/g,'I');
+    s = s.replace(/ö/g,'o').replace(/Ö/g,'O');
+    s = s.replace(/ç/g,'c').replace(/Ç/g,'C');
+    s = s.replace(/₺/g,'TL').replace(/€/g,'EUR');
+    // ASCII olmayan kalan karakterleri temizle
+    var result = '';
+    for (var i = 0; i < s.length; i++) {
+      var code = s.charCodeAt(i);
+      result += (code >= 32 && code <= 126) ? s[i] : '';
+    }
+    return result;
+  }
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
 
-  // Header
-  doc.setFillColor(0,51,88);
-  doc.rect(0, 0, 210, 35, 'F');
-  doc.setTextColor(255,255,255);
-  doc.setFontSize(20);
-  doc.setFont('helvetica','bold');
-  doc.text(STATE.firma || 'DynamoOps', 15, 18);
-  doc.setFontSize(10);
-  doc.setFont('helvetica','normal');
-  doc.text('Bakım Servis Kartı', 15, 27);
-  doc.text(`#${ie.ID}  |  ${ie.TeslimTarihi||''}`, 140, 22, {align:'right'});
+  const firma = tc(STATE.firma || 'DynamoOps');
+  const W = 210, L = 15, R = 195;
 
-  // Müşteri Bilgileri
-  doc.setTextColor(0,51,88);
-  doc.setFontSize(12);
-  doc.setFont('helvetica','bold');
-  doc.text('MÜŞTERİ BİLGİLERİ', 15, 50);
-  doc.setFontSize(10);
-  doc.setFont('helvetica','normal');
-  doc.setTextColor(66,71,79);
-  doc.text(`Şirket: ${ie.SirketAdi}`, 15, 58);
-  doc.text(`Teslim Eden: ${ie.TeslimEden||'—'}`, 15, 65);
-  doc.text(`Telefon: ${ie.Telefon||'—'}`, 15, 72);
-  doc.text(`Teslim Tarihi: ${ie.TeslimTarihi||'—'}`, 110, 58);
-  doc.text(`Teknisyen: ${ie.AtananCalisan||'—'}`, 110, 65);
-  doc.text(`Durum: ${ie.Durum}`, 110, 72);
+  // ── HEADER ──────────────────────────────────────
+  doc.setFillColor(0, 51, 88);
+  doc.rect(0, 0, W, 38, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(22);
+  doc.setFont('helvetica', 'bold');
+  doc.text(firma, L, 16);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Bakim Servis Karti', L, 24);
+  doc.setFontSize(9);
+  doc.text('#' + ie.ID + '  |  ' + formatTarih(ie.TeslimTarihi), R, 16, { align: 'right' });
 
-  // Ürünler
-  doc.setTextColor(0,51,88);
-  doc.setFontSize(12);
-  doc.setFont('helvetica','bold');
-  doc.text('ÜRÜNLER / MAKİNELER', 15, 88);
+  // ── MÜŞTERİ ──────────────────────────────────────
+  let y = 50;
+  doc.setTextColor(0, 51, 88);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('MUSTERI BILGILERI', L, y);
+  
+  // Ince cizgi
+  doc.setDrawColor(0, 51, 88);
+  doc.setLineWidth(0.4);
+  doc.line(L, y+2, R, y+2);
+  y += 8;
 
-  let yPos = 95;
-  (ie.urunler||[]).forEach(u => {
-    doc.setFontSize(10);
-    doc.setFont('helvetica','bold');
-    doc.setTextColor(13,28,46);
-    doc.text(`• ${u.UrunAdi}  [${u.Kategori||'—'}]  S/N: ${u.Seri||'—'}`, 15, yPos);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(40, 40, 40);
+
+  const col1 = L, col2 = 110;
+  doc.text('Sirket: ' + tc(ie.SirketAdi), col1, y);
+  doc.text('Teslim Tarihi: ' + formatTarih(ie.TeslimTarihi), col2, y);
+  y += 6;
+  doc.text('Teslim Eden: ' + tc(ie.TeslimEden || '-'), col1, y);
+  doc.text('Teknisyen: ' + tc(ie.AtananCalisan || '-'), col2, y);
+  y += 6;
+  doc.text('Telefon: ' + tc(String(ie.Telefon || '-')), col1, y);
+  doc.text('Durum: ' + tc(ie.Durum), col2, y);
+
+  // ── ÜRÜNLER ──────────────────────────────────────
+  y += 12;
+  doc.setTextColor(0, 51, 88);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('URUNLER / MAKINELER', L, y);
+  doc.line(L, y+2, R, y+2);
+  y += 8;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(40, 40, 40);
+
+  (ie.urunler || []).forEach(function(u) {
+    var line = '- ' + tc(u.UrunAdi) + '  [' + tc(u.Kategori || '-') + ']';
+    if (u.Seri) line += '  S/N: ' + tc(u.Seri);
+    doc.text(line, L, y);
+    y += 5;
     if (u.IlkBulgular) {
-      doc.setFont('helvetica','normal');
-      doc.setTextColor(186,26,26);
-      doc.text(`  Arıza: ${u.IlkBulgular}`, 15, yPos+6);
-      yPos += 6;
+      doc.setTextColor(180, 20, 20);
+      doc.text('  Ariza: ' + tc(u.IlkBulgular), L, y);
+      doc.setTextColor(40, 40, 40);
+      y += 5;
     }
-    yPos += 8;
+    if (u.Aciklama) {
+      doc.setTextColor(80, 80, 80);
+      doc.text('  ' + tc(u.Aciklama), L, y);
+      doc.setTextColor(40, 40, 40);
+      y += 5;
+    }
   });
 
-  // Yapılan İşlemler Tablosu — birim fiyatlar GİZLENİR
-  yPos += 5;
-  doc.setTextColor(0,51,88);
-  doc.setFontSize(12);
-  doc.setFont('helvetica','bold');
-  doc.text('YAPILAN İŞLEMLER', 15, yPos);
-  yPos += 5;
+  // ── YAPILAN İŞLEMLER ──────────────────────────────
+  y += 6;
+  doc.setTextColor(0, 51, 88);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('YAPILAN ISLEMLER', L, y);
+  doc.line(L, y+2, R, y+2);
+  y += 5;
 
-  const kalemSatirlar = (ie.kalemler||[]).map((k,i) => [
-    `${i+1}`,
-    k.Aciklama||'',
-    `${k.Adet||1} adet`,
-    `%${k.KDV||0}`,
-  ]);
-
-  if (kalemSatirlar.length) {
-    doc.autoTable({
-      startY: yPos,
-      head: [['#', 'İşlem Açıklaması', 'Adet', 'KDV']],
-      body: kalemSatirlar,
-      theme: 'striped',
-      headStyles: { fillColor: [0,51,88], textColor:[255,255,255], fontSize:9 },
-      bodyStyles: { fontSize:9, textColor:[13,28,46] },
-      columnStyles: { 0:{cellWidth:12}, 2:{cellWidth:20,halign:'center'} },
-      margin: { left:15, right:15 },
+  var kalemler = ie.kalemler || [];
+  if (kalemler.length > 0) {
+    var rows = kalemler.map(function(k, i) {
+      return [
+        String(i + 1),
+        tc(k.Aciklama || ''),
+        String(k.Adet || 1) + ' adet',
+        '%' + String(k.KDV || 0)
+      ];
     });
-    yPos = doc.lastAutoTable.finalY + 10;
+    doc.autoTable({
+      startY: y,
+      head: [['#', 'Islem Aciklamasi', 'Adet', 'KDV']],
+      body: rows,
+      theme: 'striped',
+      headStyles: { fillColor: [0,51,88], textColor: [255,255,255], fontSize: 9, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 9, textColor: [40,40,40] },
+      columnStyles: { 0: { cellWidth: 10 }, 2: { cellWidth: 22, halign: 'center' }, 3: { cellWidth: 18, halign: 'center' } },
+      margin: { left: L, right: 15 },
+    });
+    y = doc.lastAutoTable.finalY + 8;
   } else {
-    yPos += 10;
+    y += 8;
   }
 
-  // Toplam tutar (sadece toplam gösterilir)
-  const toplam = (ie.kalemler||[]).reduce((s,k)=>s+(parseFloat(k.Toplam)||0),0);
-  doc.setFillColor(230,238,255);
-  doc.rect(120, yPos, 75, 18, 'F');
-  doc.setTextColor(0,51,88);
-  doc.setFontSize(13);
-  doc.setFont('helvetica','bold');
-  doc.text('TOPLAM TUTAR:', 123, yPos+8);
-  doc.text(`₺${toplam.toFixed(2)}`, 190, yPos+8, {align:'right'});
+  // ── TOPLAM ──────────────────────────────────────
+  var toplam = kalemler.reduce(function(s, k) { return s + (parseFloat(k.Toplam) || 0); }, 0);
+  doc.setFillColor(224, 234, 255);
+  doc.rect(120, y, 75, 16, 'F');
+  doc.setTextColor(0, 51, 88);
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text('TOPLAM TUTAR:', 124, y + 7);
+  doc.text('TL ' + toplam.toFixed(2), R, y + 7, { align: 'right' });
 
-  // Footer
-  doc.setFontSize(8);
-  doc.setTextColor(114,119,128);
-  doc.setFont('helvetica','normal');
-  doc.text(`Bu belge ${new Date().toLocaleDateString('tr-TR')} tarihinde oluşturulmuştur.  |  ${STATE.firma||'DynamoOps'}`, 105, 287, {align:'center'});
+  // ── FOOTER ──────────────────────────────────────
+  doc.setFontSize(7);
+  doc.setTextColor(140, 140, 140);
+  doc.setFont('helvetica', 'normal');
+  var bugun = new Date().toLocaleDateString('tr-TR');
+  doc.text('Bu belge ' + bugun + ' tarihinde olusturulmustur.  |  ' + firma, W/2, 290, { align: 'center' });
 
-  doc.save(`BakimKarti_${ie.ID}_${ie.SirketAdi.replace(/\s/g,'_')}.pdf`);
+  var dosyaAdi = 'BakimKarti_' + ie.ID + '_' + tc(ie.SirketAdi).replace(/\s/g,'_') + '.pdf';
+  doc.save(dosyaAdi);
   toast('PDF indiriliyor...', 'info');
+  return doc;
 }
 
 // ╔══════════════════════════════════════════════════╗
@@ -2322,11 +2383,8 @@ async function sendWhatsApp() {
   const tel = document.getElementById('wp-telefon').value.replace(/\s/g,'');
   if (!tel) { toast('Telefon numarası gerekli','error'); return; }
 
-  toast('PDF hazırlanıyor...', 'info', 2000);
-  // Önce PDF indir
-  await exportPDF(STATE.wpCurrentId);
-  // Kısa bekleme — PDF indirme tetiklendi
-  await new Promise(r => setTimeout(r, 800));
+  // Önce WhatsApp'ı aç, sonra PDF indir
+  // (mobilde popup blocker önlemek için kullanıcı etkileşimi sırasında aç)
 
   // WhatsApp deep link — özel şablondan mesaj oluştur
   const ie = STATE.isEmirleri.find(x=>String(x.ID)===String(STATE.wpCurrentId));
@@ -2335,12 +2393,13 @@ async function sendWhatsApp() {
     .replace(/{sirket}/g, ie?.SirketAdi||'')
     .replace(/{id}/g, STATE.wpCurrentId||'')
     .replace(/{firma}/g, STATE.firma||'DynamoOps');
-  const msg = encodeURIComponent(mesajDolu);
-  const cleaned = tel.replace(/[^+\d]/g,'');
-  window.open(`https://wa.me/${cleaned}?text=${msg}`, '_blank');
-
+  var link = waLink(tel, mesajDolu);
+  if (!link) { toast('Geçerli telefon numarası giriniz', 'error'); return; }
+  window.open(link, '_blank');
   closeModal('modal-whatsapp');
-  toast('WhatsApp açıldı', 'success');
+  toast('WhatsApp açıldı. PDF indiriliyor...', 'success');
+  // PDF'i ayrıca indir
+  setTimeout(() => exportPDF(STATE.wpCurrentId), 500);
 }
 
 // ╔══════════════════════════════════════════════════╗
@@ -2416,7 +2475,8 @@ async function saveMusteri() {
   const id = document.getElementById('musteri-edit-id').value;
   const sirketAdi = document.getElementById('m-sirket').value.trim();
   if (!sirketAdi) { toast('Şirket adı zorunlu','error'); return; }
-  const data = { sirketAdi, teslimEden: document.getElementById('m-kisi').value, telefon: document.getElementById('m-tel').value, email: document.getElementById('m-email').value, adres: document.getElementById('m-adres').value };
+  const rawTel = document.getElementById('m-tel').value.trim();
+  const data = { sirketAdi, teslimEden: document.getElementById('m-kisi').value, telefon: rawTel, email: document.getElementById('m-email').value, adres: document.getElementById('m-adres').value };
   const payload = id 
     ? { id, SirketAdi:data.sirketAdi, TeslimEden:data.teslimEden, Telefon:data.telefon, Email:data.email, Adres:data.adres }
     : data;
@@ -3041,6 +3101,35 @@ function applyFirmaUI() {
 // ╔══════════════════════════════════════════════════╗
 // ║  UTILS                                           ║
 // ╚══════════════════════════════════════════════════╝
+
+// Telefon numarasını WhatsApp formatına çevir: 905xxxxxxxxx
+function normalizePhone(tel) {
+  if (!tel) return '';
+  var t = String(tel).replace(/[^0-9]/g, ''); // sadece rakamlar
+  if (t.length === 0) return '';
+  if (t.startsWith('90') && t.length === 12) return t;       // 905xxxxxxxx
+  if (t.startsWith('0') && t.length === 11) return '90' + t.slice(1); // 05xxxxxxxx
+  if (t.length === 10) return '90' + t;                       // 5xxxxxxxxx
+  return t; // bilinmeyen format, olduğu gibi bırak
+}
+
+// WhatsApp linki oluştur
+function waLink(tel, mesaj) {
+  var num = normalizePhone(tel);
+  if (!num) return null;
+  return 'https://wa.me/' + num + (mesaj ? '?text=' + encodeURIComponent(mesaj) : '');
+}
+
+function trToAscii(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/ğ/g,'g').replace(/Ğ/g,'G')
+    .replace(/ü/g,'u').replace(/Ü/g,'U')
+    .replace(/ş/g,'s').replace(/Ş/g,'S')
+    .replace(/ı/g,'i').replace(/İ/g,'I')
+    .replace(/ö/g,'o').replace(/Ö/g,'O')
+    .replace(/ç/g,'c').replace(/Ç/g,'C');
+}
 function escHtml(str) {
   return String(str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
